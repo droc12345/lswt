@@ -154,11 +154,10 @@ static const struct zwlr_foreign_toplevel_manager_v1_listener toplevel_manager_l
 static void registry_handle_global (void *data, struct wl_registry *registry,
 		uint32_t name, const char *interface, uint32_t version)
 {
-	// Bind zwlr_foreign_toplevel_manager_v1
 	if (! strcmp(interface, zwlr_foreign_toplevel_manager_v1_interface.name))
 	{
 		toplevel_manager = wl_registry_bind(registry, name,
-			&zwlr_foreign_toplevel_manager_v1_interface, 2);
+			&zwlr_foreign_toplevel_manager_v1_interface, version);
 		zwlr_foreign_toplevel_manager_v1_add_listener(toplevel_manager,
 				&toplevel_manager_listener, NULL);
 	}
@@ -181,23 +180,24 @@ static void sync_handle_done (void *data, struct wl_callback *wl_callback, uint3
 	static int run = 0;
 	if ( run == 0 )
 	{
-		/* First sync: Registry finished advertising stuff. */
+		/* First sync: The registry finished advertising globals. */
 		if ( toplevel_manager == NULL )
 		{
 			fputs("ERROR: Wayland server does not support foreign-toplevel-management-unstable-v1.\n", stderr);
 			loop = false;
 		}
 
+		run++;
 		sync_callback = wl_display_sync(wl_display);
 		wl_callback_add_listener(sync_callback, &sync_callback_listener, NULL);
 	}
 	else
 	{
-		/* Second sync: Now we have received all toplevel handles and their events. */
+		/* Second sync: Now we have received all toplevel handles and
+		 * their events and printed all information. Time to exit.
+		 */
 		loop = false;
 	}
-
-	run++;
 }
 
 int main(int argc, char *argv[])
