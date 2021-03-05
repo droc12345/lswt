@@ -1,4 +1,8 @@
 SCANNER := wayland-scanner
+
+PREFIX=/usr/local
+BINDIR=$(PREFIX)/bin
+
 CFLAGS=-Wall -Wextra -Wpedantic -Wno-unused-parameter
 LIBS=-lwayland-client
 OBJ=lsft.o wlr-foreign-toplevel-management-unstable-v1.o
