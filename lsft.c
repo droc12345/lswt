@@ -29,10 +29,12 @@
 const char usage[] =
 	"Usage: lsft [options...]\n"
 	"  -a, --all   Display all information.\n"
+	"  -j, --json  Output data in JSON format.\n"
 	"  -h, --help  Print this helpt text and exit.\n";
 
 bool loop = true;
 bool all = false;
+bool json = false;
 struct wl_display *wl_display = NULL;
 struct wl_registry *wl_registry = NULL;
 struct wl_callback *sync_callback = NULL;
@@ -95,7 +97,27 @@ static void handle_handle_done (void *data, struct zwlr_foreign_toplevel_handle_
 	struct Toplevel *toplevel = (struct Toplevel *)data;
 	static size_t i = 0;
 
-	if (all)
+	if (json)
+	{
+		static bool json_prev = false;
+		if (json_prev)
+			fputs(",\n", stdout);
+		else
+			json_prev = true;
+
+		fprintf(stdout, "    {\n"
+				"        \"title\": \"%s\",\n"
+				"        \"app_id\": \"%s\",\n"
+				"        \"maximized\": %s,\n"
+				"        \"minimized\": %s,\n"
+				"        \"activated\": %s,\n"
+				"        \"fullscreen\": %s\n"
+				"    }",
+				toplevel->title, toplevel->app_id,
+				bool_to_str(toplevel->maximized), bool_to_str(toplevel->minimized),
+				bool_to_str(toplevel->activated), bool_to_str(toplevel->fullscreen));
+	}
+	else if (all)
 		fprintf(stdout, "%ld: app-id=\"%s\" title=\"%s\" "
 				"maximized=%s minimized=%s activated=%s fullscreen=%s\n",
 				i, toplevel->app_id, toplevel->title,
@@ -207,6 +229,8 @@ int main(int argc, char *argv[])
 	{
 		if ( ! strcmp(argv[i], "-a") || ! strcmp(argv[i], "--all") )
 			all = true;
+		else if ( ! strcmp(argv[i], "-j") || ! strcmp(argv[i], "--json") )
+			json = true, all = true;
 		else if ( ! strcmp(argv[i], "-h") || ! strcmp(argv[i], "--help") )
 		{
 			fputs(usage, stderr);
@@ -232,9 +256,15 @@ int main(int argc, char *argv[])
 	sync_callback = wl_display_sync(wl_display);
 	wl_callback_add_listener(sync_callback, &sync_callback_listener, NULL);
 
+	if (json)
+		fputs("[\n", stdout);
+
 	while (loop)
 		if (! wl_display_dispatch(wl_display))
 			break;
+
+	if (json)
+		fputs("\n]\n", stdout);
 
 	if ( toplevel_manager != NULL )
 		zwlr_foreign_toplevel_manager_v1_destroy(toplevel_manager);
