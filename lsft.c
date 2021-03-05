@@ -37,18 +37,18 @@ static void noop () {}
 static void handle_handle_title (void *data, struct zwlr_foreign_toplevel_handle_v1 *handle,
 		const char *title)
 {
-	fprintf(stderr, " title=\"%s\"", title);
+	fprintf(stdout, " title=\"%s\"", title);
 }
 
 static void handle_handle_app_id (void *data, struct zwlr_foreign_toplevel_handle_v1 *handle,
 		const char *title)
 {
-	fprintf(stderr, " app-id=\"%s\"", title);
+	fprintf(stdout, " app-id=\"%s\"", title);
 }
 
 static void handle_handle_done (void *data, struct zwlr_foreign_toplevel_handle_v1 *handle)
 {
-	fputs("\n", stderr);
+	fputs("\n", stdout);
 	zwlr_foreign_toplevel_handle_v1_destroy(handle);
 }
 
