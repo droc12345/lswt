@@ -34,22 +34,43 @@ struct zwlr_foreign_toplevel_manager_v1 *toplevel_manager = NULL;
 
 static void noop () {}
 
+struct Toplevel
+{
+	struct zwlr_foreign_toplevel_handle_v1 *handle;
+	char *title;
+	char *app_id;
+};
+
 static void handle_handle_title (void *data, struct zwlr_foreign_toplevel_handle_v1 *handle,
 		const char *title)
 {
-	fprintf(stdout, " title=\"%s\"", title);
+	struct Toplevel *toplevel = (struct Toplevel *)data;
+	toplevel->title = strdup(title);
 }
 
 static void handle_handle_app_id (void *data, struct zwlr_foreign_toplevel_handle_v1 *handle,
-		const char *title)
+		const char *app_id)
 {
-	fprintf(stdout, " app-id=\"%s\"", title);
+	struct Toplevel *toplevel = (struct Toplevel *)data;
+	toplevel->app_id = strdup(app_id);
 }
 
 static void handle_handle_done (void *data, struct zwlr_foreign_toplevel_handle_v1 *handle)
 {
-	fputs("\n", stdout);
-	zwlr_foreign_toplevel_handle_v1_destroy(handle);
+	struct Toplevel *toplevel = (struct Toplevel *)data;
+	static size_t i = 0;
+
+	fprintf(stdout, "%ld: app-id=\"%s\" title=\"%s\"\n",
+			i, toplevel->app_id, toplevel->title);
+
+	i++;
+
+	zwlr_foreign_toplevel_handle_v1_destroy(toplevel->handle);
+	if ( toplevel->title != NULL )
+		free(toplevel->title);
+	if ( toplevel->app_id != NULL )
+		free(toplevel->app_id);
+	free(toplevel);
 }
 
 static const struct zwlr_foreign_toplevel_handle_v1_listener handle_listener = {
@@ -65,7 +86,18 @@ static const struct zwlr_foreign_toplevel_handle_v1_listener handle_listener = {
 static void toplevel_manager_handle_toplevel (void *data, struct zwlr_foreign_toplevel_manager_v1 *manager,
 		struct zwlr_foreign_toplevel_handle_v1 *handle)
 {
-	zwlr_foreign_toplevel_handle_v1_add_listener(handle, &handle_listener, NULL);
+	struct Toplevel *toplevel = calloc(1, sizeof(struct Toplevel));
+	if ( toplevel == NULL )
+	{
+		fputs("ERROR: Failed to allocate.\n", stderr);
+		return;
+	}
+
+	toplevel->handle = handle;
+	toplevel->title  = NULL;
+	toplevel->app_id = NULL;
+
+	zwlr_foreign_toplevel_handle_v1_add_listener(handle, &handle_listener, toplevel);
 }
 
 static const struct zwlr_foreign_toplevel_manager_v1_listener toplevel_manager_listener = {

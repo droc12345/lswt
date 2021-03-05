@@ -1,4 +1,1 @@
 lsft - list foreign toplevels
-
-Behold: This programs naively assumes toplevel_handle events are sent in order,
-        which may break on some Wayland servers.
