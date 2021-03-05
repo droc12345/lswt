@@ -123,6 +123,7 @@ static const struct zwlr_foreign_toplevel_handle_v1_listener handle_listener = {
 	.state        = handle_handle_state,
 	.done         = handle_handle_done,
 	.closed       = noop,
+	.parent       = noop
 };
 
 static void toplevel_manager_handle_toplevel (void *data, struct zwlr_foreign_toplevel_manager_v1 *manager,
