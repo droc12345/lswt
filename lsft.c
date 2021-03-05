@@ -112,21 +112,17 @@ static void sync_handle_done (void *data, struct wl_callback *wl_callback, uint3
 			fputs("ERROR: Wayland server does not support foreign-toplevel-management-unstable-v1.\n", stderr);
 			loop = false;
 		}
-	}
-	else if ( run == 1 )
-	{
-		/* Second sync: Now we have all toplevel handles. */
+
+		sync_callback = wl_display_sync(wl_display);
+		wl_callback_add_listener(sync_callback, &sync_callback_listener, NULL);
 	}
 	else
 	{
-		/* Final sync: All toplevel events have been received. */
+		/* Second sync: Now we have received all toplevel handles and their events. */
 		loop = false;
-		return;
 	}
 
 	run++;
-	sync_callback = wl_display_sync(wl_display);
-	wl_callback_add_listener(sync_callback, &sync_callback_listener, NULL);
 }
 
 int main(int argc, char *argv[])
