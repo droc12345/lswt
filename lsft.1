@@ -1,0 +1,36 @@
+.TH lsft 1 2021 Wayland
+
+.SH NAME
+lsft - list foreign toplevels
+
+.SH SYNOPSIS
+lsft [options...]
+
+.SH DESCRIPTION
+lsft will list all foreign toplevels advertised by a Wayland server.
+.P
+The Wayland server must implement the foreign-toplevel-management-unstable-v3
+protocol extension.
+
+.SH OPTIONS
+\fB-h\fR, \fB--help\fR
+.RS 4
+Print help text and exit.
+.P
+.RE
+\fB-a\fR, \fB--all\fR
+.RS 4
+Show all available information about the toplevels.
+.P
+.RE
+\fB-j\fR, \fB--json\fR
+.RS 4
+Output data in the JSON format. Implicitly enables \fB-a\fR.
+.P
+.P
+.RE
+
+.SH AUTHOR
+Leon Henrik Plickat
+.P
+

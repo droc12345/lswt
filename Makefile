@@ -2,6 +2,7 @@ SCANNER := wayland-scanner
 
 PREFIX=/usr/local
 BINDIR=$(PREFIX)/bin
+MANDIR=$(PREFIX)/share/man
 
 CFLAGS=-Wall -Wextra -Wpedantic -Wno-unused-parameter
 LIBS=-lwayland-client
@@ -21,12 +22,14 @@ $(OBJ): $(GEN)
 
 install:
 	install -D -t $(DESTDIR)$(BINDIR) lsft
+	install -D -t $(DESTDOR)$(MANDIR)/man1/ lsft.1
 
 uninstall:
 	$(RM) $(DESTDIR)$(BINDIR)/lsft
+	$(RM) $(DESTDIR)$(MANDIR)/man1/lsft.1
 
 clean:
-	rm -f lsft $(GEN) $(OBJ)
+	$(RM) lsft $(GEN) $(OBJ)
 
 .PHONY: clean install
 
