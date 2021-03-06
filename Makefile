@@ -22,6 +22,9 @@ $(OBJ): $(GEN)
 install:
 	install -D -t $(DESTDIR)$(BINDIR) lsft
 
+uninstall:
+	$(RM) $(DESTDIR)$(BINDIR)/lsft
+
 clean:
 	rm -f lsft $(GEN) $(OBJ)
 
