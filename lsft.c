@@ -32,6 +32,7 @@ const char usage[] =
 	"  -j, --json  Output data in JSON format.\n"
 	"  -h, --help  Print this helpt text and exit.\n";
 
+int ret = EXIT_SUCCESS;
 bool loop = true;
 bool all = false;
 bool json = false;
@@ -207,6 +208,7 @@ static void sync_handle_done (void *data, struct wl_callback *wl_callback, uint3
 		if ( toplevel_manager == NULL )
 		{
 			fputs("ERROR: Wayland server does not support foreign-toplevel-management-unstable-v1.\n", stderr);
+			ret = EXIT_FAILURE;
 			loop = false;
 		}
 
@@ -234,7 +236,7 @@ int main(int argc, char *argv[])
 		else if ( ! strcmp(argv[i], "-h") || ! strcmp(argv[i], "--help") )
 		{
 			fputs(usage, stderr);
-			return EXIT_FAILURE;
+			return EXIT_SUCCESS;
 		}
 		else
 		{
@@ -272,6 +274,6 @@ int main(int argc, char *argv[])
 		wl_registry_destroy(wl_registry);
 	wl_display_disconnect(wl_display);
 
-	return EXIT_SUCCESS;
+	return ret;
 }
 
