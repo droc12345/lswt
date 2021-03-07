@@ -254,7 +254,19 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	wl_display = wl_display_connect(NULL);
+	/* We query the display name here instead of letting wl_display_connect()
+	 * figure it out itself, because libwayland (for legacy reasons) falls
+	 * back to using "wayland-0" when $WAYLAND_DISPLAY is not set, which is
+	 * generally not desirable.
+	 */
+	const char *display_name = getenv("WAYLAND_DISPLAY");
+	if ( display_name == NULL )
+	{
+		fputs("ERROR: WAYLAND_DISPLAY is not set.\n", stderr);
+		return EXIT_FAILURE;
+	}
+
+	wl_display = wl_display_connect(display_name);
 	if ( wl_display == NULL )
 	{
 		fputs("ERROR: Can not connect to wayland display.\n", stderr);
