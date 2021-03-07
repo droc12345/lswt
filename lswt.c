@@ -29,6 +29,7 @@
 const char usage[] =
 	"Usage: lswt [options...]\n"
 	"  -a, --all   Display all information.\n"
+	"  -t, --tsv   Output data as tab separated values.\n"
 	"  -j, --json  Output data in JSON format.\n"
 	"  -h, --help  Print this helpt text and exit.\n";
 
@@ -36,6 +37,7 @@ int ret = EXIT_SUCCESS;
 bool loop = true;
 bool all = false;
 bool json = false;
+bool tsv = false;
 struct wl_display *wl_display = NULL;
 struct wl_registry *wl_registry = NULL;
 struct wl_callback *sync_callback = NULL;
@@ -118,6 +120,11 @@ static void handle_handle_done (void *data, struct zwlr_foreign_toplevel_handle_
 				bool_to_str(toplevel->maximized), bool_to_str(toplevel->minimized),
 				bool_to_str(toplevel->activated), bool_to_str(toplevel->fullscreen));
 	}
+	else if (tsv)
+		fprintf(stdout, "\"%s\"\t\"%s\"\t%s\t%s\t%s\t%s\n",
+				toplevel->title, toplevel->app_id,
+				bool_to_str(toplevel->maximized), bool_to_str(toplevel->minimized),
+				bool_to_str(toplevel->activated), bool_to_str(toplevel->fullscreen));
 	else if (all)
 		fprintf(stdout, "%ld: app-id=\"%s\" title=\"%s\" "
 				"maximized=%s minimized=%s activated=%s fullscreen=%s\n",
@@ -233,6 +240,8 @@ int main(int argc, char *argv[])
 			all = true;
 		else if ( ! strcmp(argv[i], "-j") || ! strcmp(argv[i], "--json") )
 			json = true, all = true;
+		else if ( ! strcmp(argv[i], "-t") || ! strcmp(argv[i], "--tsv") )
+			tsv = true, all = true;
 		else if ( ! strcmp(argv[i], "-h") || ! strcmp(argv[i], "--help") )
 		{
 			fputs(usage, stderr);
