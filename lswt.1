@@ -9,6 +9,19 @@ lswt [options...]
 .SH DESCRIPTION
 lswt will list all toplevels advertised by a Wayland server using the
 foreign-toplevel-management-unstable-v1 protocol extension.
+.P
+By default lswt tries to format the data to be human readable.
+.P
+.nf
+.RS 4
+<counter>: <state> "<title>" "<app-id>"
+.fi
+.RE
+.P
+The state is a four wide field, corresponding to the four possible toplevel
+states: maximized, minimized, activated and fullscreen. If one of these states
+is true for a toplevel, their respective character in the field is set to the
+first letter of the state name, otherwise it is -.
 
 .SH OPTIONS
 \fB-h\fR, \fB--help\fR
@@ -16,20 +29,15 @@ foreign-toplevel-management-unstable-v1 protocol extension.
 Print help text and exit.
 .P
 .RE
-\fB-a\fR, \fB--all\fR
-.RS 4
-Show all available information about the toplevels.
-.P
-.RE
 \fB-t\fR, \fB--tsv\fR
 .RS 4
-Output data (title, app-id, maximized, minimized, activated, fullscreen) as tab
-separated values. Implicitly enables \fB-a\fR.
+Output data as tab separated values. The fields are ordered as follows: title,
+app-id, maximized, minimized, activated, fullscreen.
 .P
 .RE
 \fB-j\fR, \fB--json\fR
 .RS 4
-Output data in the JSON format. Implicitly enables \fB-a\fR.
+Output data in the JSON format.
 .P
 .P
 .RE

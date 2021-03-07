@@ -28,14 +28,12 @@
 
 const char usage[] =
 	"Usage: lswt [options...]\n"
-	"  -a, --all   Display all information.\n"
 	"  -t, --tsv   Output data as tab separated values.\n"
 	"  -j, --json  Output data in JSON format.\n"
 	"  -h, --help  Print this helpt text and exit.\n";
 
 int ret = EXIT_SUCCESS;
 bool loop = true;
-bool all = false;
 bool json = false;
 bool tsv = false;
 struct wl_display *wl_display = NULL;
@@ -73,19 +71,26 @@ static void handle_handle_app_id (void *data, struct zwlr_foreign_toplevel_handl
 static void handle_handle_state (void *data, struct zwlr_foreign_toplevel_handle_v1 *handle,
 		struct wl_array *states)
 {
-	if (! all)
-		return;
-
 	struct Toplevel *toplevel = (struct Toplevel *)data;
 	uint32_t *state;
 	wl_array_for_each(state, states)
 	{
 		switch (*state)
 		{
-			case ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_STATE_MAXIMIZED:  toplevel->maximized  = true; break;
-			case ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_STATE_MINIMIZED:  toplevel->minimized  = true; break;
-			case ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_STATE_ACTIVATED:  toplevel->activated  = true; break;
-			case ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_STATE_FULLSCREEN: toplevel->fullscreen = true; break;
+			case ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_STATE_MAXIMIZED:
+				toplevel->maximized = true;
+				break;
+
+			case ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_STATE_MINIMIZED:
+				toplevel->minimized = true;
+				break;
+
+			case ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_STATE_ACTIVATED:
+				toplevel->activated = true;
+				break;
+			case ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_STATE_FULLSCREEN:
+				toplevel->fullscreen = true;
+				break;
 		}
 	}
 }
@@ -98,7 +103,6 @@ static inline const char *bool_to_str (bool bl)
 static void handle_handle_done (void *data, struct zwlr_foreign_toplevel_handle_v1 *handle)
 {
 	struct Toplevel *toplevel = (struct Toplevel *)data;
-	static size_t i = 0;
 
 	if (json)
 	{
@@ -117,25 +121,30 @@ static void handle_handle_done (void *data, struct zwlr_foreign_toplevel_handle_
 				"        \"fullscreen\": %s\n"
 				"    }",
 				toplevel->title, toplevel->app_id,
-				bool_to_str(toplevel->maximized), bool_to_str(toplevel->minimized),
-				bool_to_str(toplevel->activated), bool_to_str(toplevel->fullscreen));
+				bool_to_str(toplevel->maximized),
+				bool_to_str(toplevel->minimized),
+				bool_to_str(toplevel->activated),
+				bool_to_str(toplevel->fullscreen));
 	}
 	else if (tsv)
+	{
 		fprintf(stdout, "\"%s\"\t\"%s\"\t%s\t%s\t%s\t%s\n",
 				toplevel->title, toplevel->app_id,
-				bool_to_str(toplevel->maximized), bool_to_str(toplevel->minimized),
-				bool_to_str(toplevel->activated), bool_to_str(toplevel->fullscreen));
-	else if (all)
-		fprintf(stdout, "%ld: app-id=\"%s\" title=\"%s\" "
-				"maximized=%s minimized=%s activated=%s fullscreen=%s\n",
-				i, toplevel->app_id, toplevel->title,
-				bool_to_str(toplevel->maximized), bool_to_str(toplevel->minimized),
-				bool_to_str(toplevel->activated), bool_to_str(toplevel->fullscreen));
+				bool_to_str(toplevel->maximized),
+				bool_to_str(toplevel->minimized),
+				bool_to_str(toplevel->activated),
+				bool_to_str(toplevel->fullscreen));
+	}
 	else
-		fprintf(stdout, "%ld: app-id=\"%s\" title=\"%s\"\n",
-				i, toplevel->app_id, toplevel->title);
-
-	i++;
+	{
+		static size_t i = 0;
+		fprintf(stdout, "%ld: %s%s%s%s \"%s\" \"%s\"\n", i++,
+				toplevel->maximized  ? "m" : "-",
+				toplevel->minimized  ? "m" : "-",
+				toplevel->activated  ? "a" : "-",
+				toplevel->fullscreen ? "f" : "-",
+				toplevel->title, toplevel->app_id);
+	}
 
 	zwlr_foreign_toplevel_handle_v1_destroy(toplevel->handle);
 	if ( toplevel->title != NULL )
@@ -226,7 +235,7 @@ static void sync_handle_done (void *data, struct wl_callback *wl_callback, uint3
 	else
 	{
 		/* Second sync: Now we have received all toplevel handles and
-		 * their events and printed all information. Time to exit.
+		 * their events and printed all data. Time to exit.
 		 */
 		loop = false;
 	}
@@ -236,12 +245,10 @@ int main(int argc, char *argv[])
 {
 	if ( argc > 0 ) for (int i = 1; i < argc; i++)
 	{
-		if ( ! strcmp(argv[i], "-a") || ! strcmp(argv[i], "--all") )
-			all = true;
-		else if ( ! strcmp(argv[i], "-j") || ! strcmp(argv[i], "--json") )
-			json = true, all = true;
+		if ( ! strcmp(argv[i], "-j") || ! strcmp(argv[i], "--json") )
+			json = true;
 		else if ( ! strcmp(argv[i], "-t") || ! strcmp(argv[i], "--tsv") )
-			tsv = true, all = true;
+			tsv = true;
 		else if ( ! strcmp(argv[i], "-h") || ! strcmp(argv[i], "--help") )
 		{
 			fputs(usage, stderr);
