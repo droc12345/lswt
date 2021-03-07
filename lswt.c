@@ -226,6 +226,7 @@ static void sync_handle_done (void *data, struct wl_callback *wl_callback, uint3
 			fputs("ERROR: Wayland server does not support foreign-toplevel-management-unstable-v1.\n", stderr);
 			ret = EXIT_FAILURE;
 			loop = false;
+			return;
 		}
 
 		run++;
