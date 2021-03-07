@@ -1,5 +1,5 @@
 /*
- * lsft - list foreign toplevels
+ * lswt - list Wayland toplevels
  *
  * Copyright (C) 2021 Leon Henrik Plickat
  *
@@ -27,7 +27,7 @@
 #include "wlr-foreign-toplevel-management-unstable-v1.h"
 
 const char usage[] =
-	"Usage: lsft [options...]\n"
+	"Usage: lswt [options...]\n"
 	"  -a, --all   Display all information.\n"
 	"  -j, --json  Output data in JSON format.\n"
 	"  -h, --help  Print this helpt text and exit.\n";

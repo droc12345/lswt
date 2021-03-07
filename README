@@ -1,1 +1,4 @@
-lsft - list foreign toplevels
+lswt - list Wayland toplevels
+
+Requires the Wayland server to implement the foreign-toplevel-management-unstable-v1
+protocol extension.

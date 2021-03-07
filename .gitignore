@@ -1,4 +1,4 @@
 *.o
 wlr-foreign-toplevel-management-unstable-v1.c
 wlr-foreign-toplevel-management-unstable-v1.h
-lsft
+lswt
