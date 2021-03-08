@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #include <wayland-client.h>
 
@@ -95,9 +96,38 @@ static void handle_handle_state (void *data, struct zwlr_foreign_toplevel_handle
 	}
 }
 
-static inline const char *bool_to_str (bool bl)
+static void quoted_fputs (char *str, FILE *restrict f)
 {
-	return bl ? "true" : "false";
+	fputc('"', f);
+	for (; *str != '\0'; str++)
+	{
+		if ( *str == '"' )
+			fputs("\\\"", f);
+		else
+			fputc(*str, f);
+	}
+	fputc('"', f);
+}
+
+static bool string_should_be_quoted (char *str)
+{
+	for (; *str != '\0'; str++)
+		if ( isspace(*str) || *str == '"' || *str == '\'' || ! isascii(*str) )
+			return true;
+	return false;
+}
+
+static void human_fputs (char *str, FILE *restrict f)
+{
+	if (string_should_be_quoted(str))
+		quoted_fputs(str, f);
+	else
+		fputs(str, f);
+}
+
+static void fputb (bool bl, FILE *restrict f)
+{
+	fputs(bl ? "true" : "false", f);
 }
 
 static void handle_handle_done (void *data, struct zwlr_foreign_toplevel_handle_v1 *handle)
@@ -112,38 +142,47 @@ static void handle_handle_done (void *data, struct zwlr_foreign_toplevel_handle_
 		else
 			json_prev = true;
 
-		fprintf(stdout, "    {\n"
-				"        \"title\": \"%s\",\n"
-				"        \"app_id\": \"%s\",\n"
-				"        \"maximized\": %s,\n"
-				"        \"minimized\": %s,\n"
-				"        \"activated\": %s,\n"
-				"        \"fullscreen\": %s\n"
-				"    }",
-				toplevel->title, toplevel->app_id,
-				bool_to_str(toplevel->maximized),
-				bool_to_str(toplevel->minimized),
-				bool_to_str(toplevel->activated),
-				bool_to_str(toplevel->fullscreen));
+		fputs("    {\n        \"title\": ", stdout);
+		quoted_fputs(toplevel->title, stdout);
+		fputs(",\n        \"app_id\": ", stdout);
+		quoted_fputs(toplevel->app_id, stdout);
+		fputs(",\n        \"maximized\": ", stdout);
+		fputb(toplevel->maximized, stdout);
+		fputs(",\n        \"minimized\": ", stdout);
+		fputb(toplevel->minimized, stdout);
+		fputs(",\n        \"activated\": ", stdout);
+		fputb(toplevel->activated, stdout);
+		fputs(",\n        \"fullscreen\": ", stdout);
+		fputb(toplevel->fullscreen, stdout);
+		fputs("\n    }", stdout);
 	}
 	else if (tsv)
 	{
-		fprintf(stdout, "\"%s\"\t\"%s\"\t%s\t%s\t%s\t%s\n",
-				toplevel->title, toplevel->app_id,
-				bool_to_str(toplevel->maximized),
-				bool_to_str(toplevel->minimized),
-				bool_to_str(toplevel->activated),
-				bool_to_str(toplevel->fullscreen));
+		quoted_fputs(toplevel->title, stdout);
+		fputc('\t', stdout);
+		quoted_fputs(toplevel->app_id, stdout);
+		fputc('\t', stdout);
+		fputb(toplevel->maximized, stdout);
+		fputc('\t', stdout);
+		fputb(toplevel->minimized, stdout);
+		fputc('\t', stdout);
+		fputb(toplevel->activated, stdout);
+		fputc('\t', stdout);
+		fputb(toplevel->fullscreen, stdout);
+		fputc('\n', stdout);
 	}
 	else
 	{
 		static size_t i = 0;
-		fprintf(stdout, "%ld: %s%s%s%s \"%s\" \"%s\"\n", i++,
+		fprintf(stdout, "%ld: %s%s%s%s ", i++,
 				toplevel->maximized  ? "m" : "-",
 				toplevel->minimized  ? "m" : "-",
 				toplevel->activated  ? "a" : "-",
-				toplevel->fullscreen ? "f" : "-",
-				toplevel->title, toplevel->app_id);
+				toplevel->fullscreen ? "f" : "-");
+		human_fputs(toplevel->title, stdout);
+		fputc(' ', stdout);
+		human_fputs(toplevel->app_id, stdout);
+		fputc('\n', stdout);
 	}
 
 	zwlr_foreign_toplevel_handle_v1_destroy(toplevel->handle);

@@ -14,7 +14,7 @@ By default lswt tries to format the data to be human readable.
 .P
 .nf
 .RS 4
-<counter>: <state> "<title>" "<app-id>"
+<counter>: <state> <title> <app-id>
 .fi
 .RE
 .P
@@ -31,8 +31,8 @@ Print help text and exit.
 .RE
 \fB-t\fR, \fB--tsv\fR
 .RS 4
-Output data as tab separated values. The fields are ordered as follows: title,
-app-id, maximized, minimized, activated, fullscreen.
+Output data as tab separated values. The values are ordered as follows: title,
+app-id, maximized, minimized, activated, fullscreen. Title and app-id are quoted.
 .P
 .RE
 \fB-j\fR, \fB--json\fR
