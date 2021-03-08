@@ -257,6 +257,7 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
+			fprintf(stderr, "Invalid option: %s\n", argv[i]);
 			fputs(usage, stderr);
 			return EXIT_FAILURE;
 		}
