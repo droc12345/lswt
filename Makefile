@@ -4,7 +4,7 @@ PREFIX=/usr/local
 BINDIR=$(PREFIX)/bin
 MANDIR=$(PREFIX)/share/man
 
-CFLAGS=-Wall -Wextra -Wpedantic -Wno-unused-parameter
+CFLAGS=-Wall -Werror -Wextra -Wpedantic -Wno-unused-parameter -Wconversion
 LIBS=-lwayland-client
 OBJ=lswt.o wlr-foreign-toplevel-management-unstable-v1.o xdg-output-unstable-v1.o
 GEN=wlr-foreign-toplevel-management-unstable-v1.c wlr-foreign-toplevel-management-unstable-v1.h xdg-output-unstable-v1.c xdg-output-unstable-v1.h

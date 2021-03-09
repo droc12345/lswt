@@ -37,11 +37,11 @@ const char usage[] =
 /* wl_list is not useful for what we want to do, so we need our own little list type. */
 typedef struct
 {
-	int capacity, change, length;
+	size_t capacity, change, length;
 	void **items;
 } list_t;
 
-static bool list_init (list_t *list, int capacity)
+static bool list_init (list_t *list, size_t capacity)
 {
 	list->capacity = capacity;
 	list->change   = 5;
@@ -220,7 +220,7 @@ static void toplevel_manager_handle_toplevel (void *data, struct zwlr_foreign_to
 		return;
 	}
 
-	static int i = 0;
+	static uint32_t i = 0;
 
 	toplevel->handle     = handle;
 	toplevel->i          = i++;
@@ -320,7 +320,7 @@ static void sync_handle_done (void *data, struct wl_callback *wl_callback, uint3
 		}
 
 		if ( xdg_output_manager != NULL )
-			for (int i = 0; i < outputs.length; i++)
+			for (size_t i = 0; i < outputs.length; i++)
 			{
 				struct Output *output = (struct Output *)outputs.items[i];
 				output->xdg_output = zxdg_output_manager_v1_get_xdg_output(
@@ -401,7 +401,7 @@ static void print_toplevel (struct Toplevel *toplevel)
 		fputs(",\n        \"outputs\": [", stdout);
 
 		bool prev = false;
-		for (int i = 0; i < toplevel->outputs.length; i++)
+		for (size_t i = 0; i < toplevel->outputs.length; i++)
 		{
 			struct Output *output = (struct Output *)toplevel->outputs.items[i];
 
@@ -443,7 +443,7 @@ static void print_toplevel (struct Toplevel *toplevel)
 		else
 		{
 			bool prev = false;
-			for (int i = 0; i < toplevel->outputs.length; i++)
+			for (size_t i = 0; i < toplevel->outputs.length; i++)
 			{
 				struct Output *output = (struct Output *)toplevel->outputs.items[i];
 
@@ -495,7 +495,7 @@ static void destroy_toplevel (struct Toplevel *toplevel)
 
 static void print_and_destroy_toplevels (list_t *list)
 {
-	for (int i = 0; i < list->length; i++)
+	for (size_t i = 0; i < list->length; i++)
 	{
 		struct Toplevel *toplevel = (struct Toplevel *)list->items[i];
 		print_toplevel(toplevel);
@@ -527,7 +527,7 @@ static void dump_and_free_data (void)
 		if (json)
 			fputs("\n]\n", stdout);
 
-		for (int i = 0; i < outputs.length; i++)
+		for (size_t i = 0; i < outputs.length; i++)
 		{
 			struct Output *output = (struct Output *)outputs.items[i];
 			destroy_output(output);
@@ -536,7 +536,7 @@ static void dump_and_free_data (void)
 	else
 	{
 		bool prev = false;
-		for (int i = 0; i < outputs.length; i++)
+		for (size_t i = 0; i < outputs.length; i++)
 		{
 			struct Output *output = (struct Output *)outputs.items[i];
 
