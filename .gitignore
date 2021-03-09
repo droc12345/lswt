@@ -1,4 +1,6 @@
 *.o
 wlr-foreign-toplevel-management-unstable-v1.c
 wlr-foreign-toplevel-management-unstable-v1.h
+xdg-output-unstable-v1.c
+xdg-output-unstable-v1.h
 lswt

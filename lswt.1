@@ -1,4 +1,4 @@
-.TH lswt 1 2021-03-07
+.TH lswt 1 2021-03-09
 
 .SH NAME
 lswt - list Wayland toplevels
@@ -10,7 +10,9 @@ lswt [options...]
 lswt will list all toplevels advertised by a Wayland server using the
 foreign-toplevel-management-unstable-v1 protocol extension.
 .P
-By default lswt tries to format the data to be human readable.
+By default lswt tries to format the data to be human readable. If you want to
+parse the output, consider using one of the available machine readable output
+modes.
 .P
 .nf
 .RS 4
@@ -18,10 +20,18 @@ By default lswt tries to format the data to be human readable.
 .fi
 .RE
 .P
+The counter indicates in what order the toplevels have been advertised by the
+server. It is also helpful to identify the same toplevel on multiple outputs.
+.P
 The state is a four wide field, corresponding to the four possible toplevel
 states: maximized, minimized, activated and fullscreen. If one of these states
 is true for a toplevel, their respective character in the field is set to the
 first letter of the state name, otherwise it is -.
+.P
+The server must implement the xdg-output-unstable-v1 protocol extension for
+lswt to fetch the output names. If the extension is not supported, the global
+name of the output, which is a basically a useless integer, is used instead to
+keep the output consistent.
 
 .SH OPTIONS
 \fB-h\fR, \fB--help\fR
@@ -32,7 +42,10 @@ Print help text and exit.
 \fB-t\fR, \fB--tsv\fR
 .RS 4
 Output data as tab separated values. The values are ordered as follows: title,
-app-id, maximized, minimized, activated, fullscreen. Title and app-id are quoted.
+app-id, maximized, minimized, activated, fullscreen, outputs. Title and app-id
+are quoted. States are boolean ("true" or "false"). The outputs field is a comma
+separated list of the quoted names of outputs the toplevel is on or "none" if
+the toplevel is not on any output.
 .P
 .RE
 \fB-j\fR, \fB--json\fR
