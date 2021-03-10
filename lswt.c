@@ -59,12 +59,14 @@ static void list_finish (list_t *list)
 static void list_append_item (list_t *list, void *item)
 {
 	if ( list->length == list->capacity )
-		list->capacity += list->change;
-	list->items = realloc(list->items, sizeof(void *) * list->capacity);
-	if ( list->items == NULL )
 	{
-		fputs("ERROR: Failed to re-allocate.\n", stderr);
-		return;
+		list->capacity += list->change;
+		list->items = realloc(list->items, sizeof(void *) * list->capacity);
+		if ( list->items == NULL )
+		{
+			fputs("ERROR: Failed to re-allocate.\n", stderr);
+			return;
+		}
 	}
 	list->items[list->length] = item;
 	list->length++;
