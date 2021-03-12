@@ -28,11 +28,14 @@
 #include "xdg-output-unstable-v1.h"
 #include "wlr-foreign-toplevel-management-unstable-v1.h"
 
+#define VERSION "0.1.0"
+
 const char usage[] =
 	"Usage: lswt [options...]\n"
-	"  -t, --tsv   Output data as tab separated values.\n"
-	"  -j, --json  Output data in JSON format.\n"
-	"  -h, --help  Print this helpt text and exit.\n";
+	"  -t, --tsv      Output data as tab separated values.\n"
+	"  -j, --json     Output data in JSON format.\n"
+	"  -h, --help     Print this helpt text and exit.\n"
+	"  -v, --version  Print version and exit.\n";
 
 /* wl_list is not useful for what we want to do, so we need our own little list type. */
 typedef struct
@@ -607,6 +610,11 @@ int main(int argc, char *argv[])
 			json = true;
 		else if ( ! strcmp(argv[i], "-t") || ! strcmp(argv[i], "--tsv") )
 			tsv = true;
+		else if ( ! strcmp(argv[i], "-v") || ! strcmp(argv[i], "--version") )
+		{
+			fputs("lswt version " VERSION "\n", stderr);
+			return EXIT_SUCCESS;
+		}
 		else if ( ! strcmp(argv[i], "-h") || ! strcmp(argv[i], "--help") )
 		{
 			fputs(usage, stderr);
