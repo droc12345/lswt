@@ -582,6 +582,23 @@ static void dump_and_free_data (void)
 	list_finish(&all_toplevels);
 }
 
+static void free_data (void)
+{
+	for (size_t i = 0; i < outputs.length; i++)
+	{
+		struct Output *output = (struct Output *)outputs.items[i];
+		destroy_output(output);
+	}
+	list_finish(&outputs);
+
+	for (size_t i = 0; i < all_toplevels.length; i++)
+	{
+		struct Toplevel *toplevel = (struct Toplevel *)all_toplevels.items[i];
+		destroy_toplevel(toplevel);
+	}
+	list_finish(&all_toplevels);
+}
+
 int main(int argc, char *argv[])
 {
 	if ( argc > 0 ) for (int i = 1; i < argc; i++)
@@ -623,7 +640,7 @@ int main(int argc, char *argv[])
 	}
 
 	list_init(&outputs, 1);
-	list_init(&all_toplevels, 1);
+	list_init(&all_toplevels, 5);
 
 	wl_registry = wl_display_get_registry(wl_display);
 	wl_registry_add_listener(wl_registry, &registry_listener, NULL);
@@ -631,11 +648,15 @@ int main(int argc, char *argv[])
 	sync_callback = wl_display_sync(wl_display);
 	wl_callback_add_listener(sync_callback, &sync_callback_listener, NULL);
 
-	while (loop)
-		if (! wl_display_dispatch(wl_display))
-			break;
+	while ( loop && wl_display_dispatch(wl_display) > 0 );
 
-	dump_and_free_data();
+	/* If nothing went wrong in the main loop we can print and free all data,
+	 * otherwise just free it.
+	 */
+	if ( ret == EXIT_SUCCESS )
+		dump_and_free_data();
+	else
+		free_data();
 
 	if ( toplevel_manager != NULL )
 		zwlr_foreign_toplevel_manager_v1_destroy(toplevel_manager);
