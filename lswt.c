@@ -84,6 +84,8 @@ struct zxdg_output_manager_v1 *xdg_output_manager = NULL;
 struct Output *no_output = NULL;
 list_t outputs;
 list_t all_toplevels;
+uint32_t buffered_registry_name = 0;
+uint32_t buffered_registry_version;
 
 static void noop () {}
 
@@ -288,10 +290,8 @@ static void registry_handle_global (void *data, struct wl_registry *registry,
 				&zxdg_output_manager_v1_interface, version);
 	else if (! strcmp(interface, zwlr_foreign_toplevel_manager_v1_interface.name))
 	{
-		toplevel_manager = wl_registry_bind(registry, name,
-			&zwlr_foreign_toplevel_manager_v1_interface, version);
-		zwlr_foreign_toplevel_manager_v1_add_listener(toplevel_manager,
-				&toplevel_manager_listener, NULL);
+		buffered_registry_name    = name;
+		buffered_registry_version = version;
 	}
 }
 
@@ -309,17 +309,29 @@ static void sync_handle_done (void *data, struct wl_callback *wl_callback, uint3
 {
 	wl_callback_destroy(wl_callback);
 
-	static int run = 0;
-	if ( run == 0 )
+	static int sync = 0;
+	if ( sync == 0 )
 	{
-		/* First sync: The registry finished advertising globals. */
-		if ( toplevel_manager == NULL )
+		/* First sync: The registry finished advertising globals and we
+		 * have bound all outputs. Now we can use the buffered registry
+		 * values to bind the foreign-toplevel-manager. We do this now
+		 * instead of directly in the registry listener, as otherwise
+		 * there is a chance that it gets bound before the outputs,
+		 * which causes the server to not send the output_enter events.
+		 * See: https://github.com/swaywm/wlroots/issues/1567
+		 */
+		if ( buffered_registry_name == 0 )
 		{
 			fputs("ERROR: Wayland server does not support foreign-toplevel-management-unstable-v1.\n", stderr);
 			ret = EXIT_FAILURE;
 			loop = false;
 			return;
 		}
+
+		toplevel_manager = wl_registry_bind(wl_registry, buffered_registry_name,
+			&zwlr_foreign_toplevel_manager_v1_interface, buffered_registry_version);
+		zwlr_foreign_toplevel_manager_v1_add_listener(toplevel_manager,
+				&toplevel_manager_listener, NULL);
 
 		if ( xdg_output_manager != NULL )
 			for (size_t i = 0; i < outputs.length; i++)
@@ -331,14 +343,15 @@ static void sync_handle_done (void *data, struct wl_callback *wl_callback, uint3
 						&xdg_output_listener, output);
 			}
 
-		run++;
+		sync++;
 		sync_callback = wl_display_sync(wl_display);
 		wl_callback_add_listener(sync_callback, &sync_callback_listener, NULL);
 	}
 	else
 	{
 		/* Second sync: Now we have received all toplevel handles and
-		 * their events. Time to leave the loop, print all data and exit.
+		 * their events and (if available) all XDG-Output events.
+		 * Time to leave the main loop, print all data and exit.
 		 */
 		loop = false;
 	}
