@@ -269,7 +269,7 @@ static const struct zxdg_output_v1_listener xdg_output_listener = {
 static void registry_handle_global (void *data, struct wl_registry *registry,
 		uint32_t name, const char *interface, uint32_t version)
 {
-	if (! strcmp(interface, wl_output_interface.name))
+	if ( strcmp(interface, wl_output_interface.name) == 0 )
 	{
 		struct Output *output = calloc(1, sizeof(struct Output));
 		if ( output == NULL )
@@ -288,10 +288,10 @@ static void registry_handle_global (void *data, struct wl_registry *registry,
 		list_init(&output->toplevels, version);
 		list_append_item(&outputs, (void *)output);
 	}
-	else if (! strcmp(interface, zxdg_output_manager_v1_interface.name))
+	else if ( strcmp(interface, zxdg_output_manager_v1_interface.name) == 0 )
 		xdg_output_manager = wl_registry_bind(registry, name,
 				&zxdg_output_manager_v1_interface, version);
-	else if (! strcmp(interface, zwlr_foreign_toplevel_manager_v1_interface.name))
+	else if ( strcmp(interface, zwlr_foreign_toplevel_manager_v1_interface.name) == 0 )
 	{
 		buffered_registry_name    = name;
 		buffered_registry_version = version;
@@ -606,16 +606,16 @@ int main(int argc, char *argv[])
 {
 	if ( argc > 0 ) for (int i = 1; i < argc; i++)
 	{
-		if ( ! strcmp(argv[i], "-j") || ! strcmp(argv[i], "--json") )
+		if ( strcmp(argv[i], "-j") == 0 || strcmp(argv[i], "--json") == 0 )
 			json = true;
-		else if ( ! strcmp(argv[i], "-t") || ! strcmp(argv[i], "--tsv") )
+		else if ( strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--tsv") == 0 )
 			tsv = true;
-		else if ( ! strcmp(argv[i], "-v") || ! strcmp(argv[i], "--version") )
+		else if ( strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0 )
 		{
 			fputs("lswt version " VERSION "\n", stderr);
 			return EXIT_SUCCESS;
 		}
-		else if ( ! strcmp(argv[i], "-h") || ! strcmp(argv[i], "--help") )
+		else if ( strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0 )
 		{
 			fputs(usage, stderr);
 			return EXIT_SUCCESS;
