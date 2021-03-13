@@ -3,6 +3,7 @@ SCANNER := wayland-scanner
 PREFIX=/usr/local
 BINDIR=$(PREFIX)/bin
 MANDIR=$(PREFIX)/share/man
+BASHCOMPDIR=$(PREFIX)/share/bash-completion/completions
 
 CFLAGS=-Wall -Werror -Wextra -Wpedantic -Wno-unused-parameter -Wconversion
 LIBS=-lwayland-client
@@ -20,13 +21,15 @@ $(OBJ): $(GEN)
 %.h: %.xml
 	$(SCANNER) client-header < $< > $@
 
-install:
-	install -D -t $(DESTDIR)$(BINDIR) lswt
-	install -D -t $(DESTDOR)$(MANDIR)/man1/ lswt.1
+install: lswt
+	install -D lswt            $(DESTDIR)$(BINDIR)/lswt
+	install -D lswt.1          $(DESTDIR)$(MANDIR)/man1/lswt.1
+	install -D bash-completion $(DESTDIR)$(BASHCOMPDIR)/lswt 
 
 uninstall:
 	$(RM) $(DESTDIR)$(BINDIR)/lswt
 	$(RM) $(DESTDIR)$(MANDIR)/man1/lswt.1
+	$(RM) $(DESTDIR)$(BASHCOMPDIR)/lswt
 
 clean:
 	$(RM) lswt $(GEN) $(OBJ)
