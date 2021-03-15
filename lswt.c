@@ -169,6 +169,7 @@ static void handle_handle_state (void *data, struct zwlr_foreign_toplevel_handle
 			case ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_STATE_ACTIVATED:
 				toplevel->activated = true;
 				break;
+
 			case ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_STATE_FULLSCREEN:
 				toplevel->fullscreen = true;
 				break;
@@ -311,6 +312,7 @@ static const struct wl_callback_listener sync_callback_listener = {
 static void sync_handle_done (void *data, struct wl_callback *wl_callback, uint32_t other_data)
 {
 	wl_callback_destroy(wl_callback);
+	sync_callback = NULL;
 
 	static int sync = 0;
 	if ( sync == 0 )
@@ -666,6 +668,8 @@ int main(int argc, char *argv[])
 	else
 		free_data();
 
+	if ( sync_callback != NULL )
+		wl_callback_destroy(sync_callback);
 	if ( toplevel_manager != NULL )
 		zwlr_foreign_toplevel_manager_v1_destroy(toplevel_manager);
 	if ( xdg_output_manager != NULL )
