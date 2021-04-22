@@ -28,7 +28,7 @@
 #include "xdg-output-unstable-v1.h"
 #include "wlr-foreign-toplevel-management-unstable-v1.h"
 
-#define VERSION "1.0.0"
+#define VERSION "1.0.1"
 
 const char usage[] =
 	"Usage: lswt [options...]\n"
