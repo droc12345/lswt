@@ -364,6 +364,12 @@ static void sync_handle_done (void *data, struct wl_callback *wl_callback, uint3
 
 static void quoted_fputs (char *str, FILE *restrict f)
 {
+	if ( str == NULL )
+	{
+		fputs("\"<NULL>\"", f);
+		return;
+	}
+
 	fputc('"', f);
 	for (; *str != '\0'; str++)
 	{
@@ -385,7 +391,9 @@ static bool string_should_be_quoted (char *str)
 
 static void human_fputs (char *str, FILE *restrict f)
 {
-	if (string_should_be_quoted(str))
+	if ( str == NULL )
+		fputs("<NULL>", f);
+	else if (string_should_be_quoted(str))
 		quoted_fputs(str, f);
 	else
 		fputs(str, f);
