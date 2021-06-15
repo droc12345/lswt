@@ -11,7 +11,7 @@ OBJ=lswt.o wlr-foreign-toplevel-management-unstable-v1.o xdg-output-unstable-v1.
 GEN=wlr-foreign-toplevel-management-unstable-v1.c wlr-foreign-toplevel-management-unstable-v1.h xdg-output-unstable-v1.c xdg-output-unstable-v1.h
 
 lswt: $(OBJ)
-	$(CC)$ $(LDFLAGS) -o $@ $(OBJ) $(LIBS)
+	$(CC) $(LDFLAGS) -o $@ $(OBJ) $(LIBS)
 
 $(OBJ): $(GEN)
 
