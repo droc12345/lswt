@@ -1,66 +1,91 @@
-.TH lswt 1 2021-03-13 lswt-1.0.1
-
+.TH LSWT 1 2021-07-17 "git.sr.ht/~leon_plickat/lswt" "General Commands Manual"
+.
 .SH NAME
-lswt - list Wayland toplevels
-
+.P
+lswt \- list Wayland toplevels
+.
+.
 .SH SYNOPSIS
-lswt [options...]
-
+.SY lswt
+.OP \-t
+.OP \-\-tsv
+.OP \-j
+.OP \-\-json
+.YS
+.
+.SY lswt
+.OP \-h
+.OP \-\-help
+.YS
+.
+.SY lswt
+.OP \-v
+.OP \-\-version
+.YS
+.
+.
 .SH DESCRIPTION
+.P
 lswt will list all toplevels advertised by a Wayland server using the
-foreign-toplevel-management-unstable-v1 protocol extension.
+\fBforeign-toplevel-management-unstable-v1\fR protocol extension.
 .P
-By default lswt tries to format the data to be human readable. If you want to
-parse the output, consider using one of the available machine readable output
-modes.
+By default lswt tries to format the data to be human readable.
+If you want to parse the output, consider using one of the available machine
+readable output modes.
 .P
-.nf
-.RS 4
-<counter>: <state> <title> <app-id>
-.fi
+.RS
+.B id: state title app-id
 .RE
 .P
-The counter indicates in what order the toplevels have been advertised by the
-server. It is also helpful to identify the same toplevel on multiple outputs.
+The \fBid\fR indicates in what order the toplevels have been advertised by the
+server.
+It is also helpful to identify the same toplevel on multiple outputs.
 .P
-The state is a four wide field, corresponding to the four possible toplevel
-states: maximized, minimized, activated and fullscreen. If one of these states
-is true for a toplevel, their respective character in the field is set to the
-first letter of the state name, otherwise it is -.
+The \fBstate\fR is a four wide character field, corresponding to the four
+possible toplevel states: maximized, minimized, activated and fullscreen.
+If one of these states is true for a toplevel, the respective character in the
+field is set to the first letter of the state name, otherwise it is \-.
 .P
-The server must implement the xdg-output-unstable-v1 protocol extension for
-lswt to fetch the output names. If the extension is not supported, the global
-name of the output, which is a basically a useless integer, is used instead to
-keep the output consistent.
-
+The server must implement the \fBxdg-output-unstable-v1\fR protocol extension
+for lswt to fetch the output names.
+If the extension is not supported, the global name of the output, which is a
+basically a useless integer, is used instead to keep the output consistent.
+.
+.
 .SH OPTIONS
+.P
 \fB-h\fR, \fB--help\fR
-.RS 4
+.RS
 Print help text and exit.
-.P
 .RE
+.
+.P
 \fB-v\fR, \fB--version\fR
-.RS 4
+.RS
 Print version and exit.
-.P
 .RE
+.
+.P
 \fB-t\fR, \fB--tsv\fR
-.RS 4
-Output data as tab separated values. The values are ordered as follows: title,
-app-id, maximized, minimized, activated, fullscreen, outputs. Title and app-id
-are quoted. States are boolean ("true" or "false"). The outputs field is a comma
-separated list of the quoted names of outputs the toplevel is on or "none" if
-the toplevel is not on any output.
-.P
+.RS
+Output data as tab separated values.
+The values are ordered as follows: title, app-id, maximized, minimized,
+activated, fullscreen, outputs.
+Title and app-id are quoted.
+States are boolean (\(dqtrue\(dq or \(dqfalse\(dq).
+The outputs field is a comma separated list of the quoted names of outputs the
+toplevel is on or \(dqnone\(dq if the toplevel is not on any output.
 .RE
+.
+.P
 \fB-j\fR, \fB--json\fR
-.RS 4
+.RS
 Output data in the JSON format.
-.P
-.P
 .RE
-
+.
+.
 .SH AUTHOR
-Leon Henrik Plickat
 .P
-
+.MT leonhenrik.plickat@stud.uni-goettingen.de
+Leon Henrik Plickat
+.ME
