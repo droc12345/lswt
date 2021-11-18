@@ -17,13 +17,18 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <ctype.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
-
+#include <unistd.h>
 #include <wayland-client.h>
+
+#ifndef BSD
+#include<execinfo.h>
+#endif
 
 #include "xdg-output-unstable-v1.h"
 #include "wlr-foreign-toplevel-management-unstable-v1.h"
@@ -612,8 +617,59 @@ static void free_data (void)
 	list_finish(&all_toplevels);
 }
 
+/**
+ * Intercept error signals (like SIGSEGV and SIGFPE) so that we can try to
+ * print a fancy error message and a backtracke before letting the system kill us.
+ */
+static void handle_error (int signum)
+{
+	const char *msg =
+		"\n"
+		"┌──────────────────────────────────────────┐\n"
+		"│                                          │\n"
+		"│           lswt has crashed.              │\n"
+		"│                                          │\n"
+		"│    This is likely a bug, so please       │\n"
+		"│    report this to the mailing list.      │\n"
+		"│                                          │\n"
+		"│  ~leon_plickat/public-inbox@lists.sr.ht  │\n"
+		"│                                          │\n"
+		"└──────────────────────────────────────────┘\n"
+		"\n";
+	fputs(msg, stderr);
+
+#ifndef BSD
+	fputs("Attempting to get backtrace:\n", stderr);
+
+	/* In some rare cases, getting a backtrace can also cause a segfault.
+	 * There is nothing we can or should do about that. All hope is lost at
+	 * that point.
+	 */
+	void *buffer[255];
+	const int calls = backtrace(buffer, sizeof(buffer) / sizeof(void *));
+	backtrace_symbols_fd(buffer, calls, fileno(stderr));
+	fputs("\n", stderr);
+#endif
+
+	/* Let the default handlers deal with the rest. */
+	signal(signum, SIG_DFL);
+	kill(getpid(), signum);
+}
+
+/**
+ * Set up signal handlers.
+ */
+static void init_signals (void)
+{
+	signal(SIGSEGV, handle_error);
+	signal(SIGFPE, handle_error);
+
+}
+
 int main(int argc, char *argv[])
 {
+	init_signals();
+
 	if ( argc > 0 ) for (int i = 1; i < argc; i++)
 	{
 		if ( strcmp(argv[i], "-j") == 0 || strcmp(argv[i], "--json") == 0 )
