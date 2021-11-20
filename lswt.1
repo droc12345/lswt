@@ -48,8 +48,13 @@ field is set to the first letter of the state name, otherwise it is \-.
 .P
 The server must implement the \fBxdg-output-unstable-v1\fR protocol extension
 for lswt to fetch the output names.
-If the extension is not supported, the global name of the output, which is a
+If the extension is not supported, the object id of the output, which is a
 basically a useless integer, is used instead to keep the output consistent.
+.P
+The machine readable formats additionally expose the object id of the toplevel
+handle.
+Please note that this can not be used to reliably identify unique toplevels,
+because the Wayland protocol allows to recycle object ids.
 .
 .
 .SH OPTIONS
@@ -70,7 +75,7 @@ Print version and exit.
 .RS
 Output data as tab separated values.
 The values are ordered as follows: title, app-id, maximized, minimized,
-activated, fullscreen, outputs.
+activated, fullscreen, outputs, object-id.
 Title and app-id are quoted.
 States are boolean (\(dqtrue\(dq or \(dqfalse\(dq).
 The outputs field is a comma separated list of the quoted names of outputs the
