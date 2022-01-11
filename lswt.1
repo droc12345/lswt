@@ -46,11 +46,6 @@ possible toplevel states: maximized, minimized, activated and fullscreen.
 If one of these states is true for a toplevel, the respective character in the
 field is set to the first letter of the state name, otherwise it is \-.
 .P
-The server must implement the \fBxdg-output-unstable-v1\fR protocol extension
-for lswt to fetch the output names.
-If the extension is not supported, the object id of the output, which is a
-basically a useless integer, is used instead to keep the output consistent.
-.P
 The machine readable formats additionally expose the object id of the toplevel
 handle.
 Please note that this can not be used to reliably identify unique toplevels,

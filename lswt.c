@@ -1,7 +1,7 @@
 /*
  * lswt - list Wayland toplevels
  *
- * Copyright (C) 2021 Leon Henrik Plickat
+ * Copyright (C) 2021 - 2022 Leon Henrik Plickat
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,7 +33,6 @@
 #endif
 #endif
 
-#include "xdg-output-unstable-v1.h"
 #include "wlr-foreign-toplevel-management-unstable-v1.h"
 
 #define VERSION "1.0.2"
@@ -91,7 +90,6 @@ struct wl_display *wl_display = NULL;
 struct wl_registry *wl_registry = NULL;
 struct wl_callback *sync_callback = NULL;
 struct zwlr_foreign_toplevel_manager_v1 *toplevel_manager = NULL;
-struct zxdg_output_manager_v1 *xdg_output_manager = NULL;
 struct Output *no_output = NULL;
 list_t outputs;
 list_t all_toplevels;
@@ -118,7 +116,6 @@ struct Toplevel
 struct Output
 {
 	struct wl_output *wl_output;
-	struct zxdg_output_v1 *xdg_output;
 	char *name;
 	uint32_t global_name;
 	list_t toplevels;
@@ -202,7 +199,6 @@ static void handle_handle_done (void *data, struct zwlr_foreign_toplevel_handle_
 			}
 
 			no_output->wl_output = NULL;
-			no_output->xdg_output = NULL;
 			no_output->global_name = 0;
 			no_output->name = NULL;
 
@@ -258,7 +254,7 @@ static const struct zwlr_foreign_toplevel_manager_v1_listener toplevel_manager_l
 	.finished = noop,
 };
 
-static void xdg_output_handle_name (void *data, struct zxdg_output_v1 *xdg_output,
+static void wl_output_handle_name (void *data, struct wl_output *wl_output,
 		const char *name)
 {
 	struct Output *output = (struct Output *)data;
@@ -267,12 +263,13 @@ static void xdg_output_handle_name (void *data, struct zxdg_output_v1 *xdg_outpu
 	output->name = strdup(name);
 }
 
-static const struct zxdg_output_v1_listener xdg_output_listener = {
-	.logical_size     = noop,
-	.name             = xdg_output_handle_name,
-	.logical_position = noop,
-	.description      = noop,
-	.done             = noop, /* Deprecated since version 3. */
+static const struct wl_output_listener wl_output_listener = {
+	.name        = wl_output_handle_name,
+	.geometry    = noop,
+	.mode        = noop,
+	.scale       = noop,
+	.description = noop,
+	.done        = noop,
 };
 
 static void registry_handle_global (void *data, struct wl_registry *registry,
@@ -280,26 +277,31 @@ static void registry_handle_global (void *data, struct wl_registry *registry,
 {
 	if ( strcmp(interface, wl_output_interface.name) == 0 )
 	{
+		if ( version < 4 )
+		{
+			fputs("ERROR: The compositor uses an outdated wl_output version.\n"
+				"       Please inform the compositor developers so they can update to the latest version.\n", stderr);
+			loop = false;
+			return;
+		}
+
 		struct Output *output = calloc(1, sizeof(struct Output));
 		if ( output == NULL )
 		{
 			fputs("ERROR: Failed to allocate.\n", stderr);
+			loop = false;
 			return;
 		}
 
 		output->wl_output = wl_registry_bind(registry, name, 
-				&wl_output_interface, version);
-		output->xdg_output = NULL;
+				&wl_output_interface, 4);
 		output->name = NULL;
 		output->global_name = name;
+		wl_output_add_listener(output->wl_output, &wl_output_listener, output);
 
-		wl_output_set_user_data(output->wl_output, output);
 		list_init(&output->toplevels, version);
 		list_append_item(&outputs, (void *)output);
 	}
-	else if ( strcmp(interface, zxdg_output_manager_v1_interface.name) == 0 )
-		xdg_output_manager = wl_registry_bind(registry, name,
-				&zxdg_output_manager_v1_interface, version);
 	else if ( strcmp(interface, zwlr_foreign_toplevel_manager_v1_interface.name) == 0 )
 	{
 		buffered_registry_name    = name;
@@ -346,16 +348,6 @@ static void sync_handle_done (void *data, struct wl_callback *wl_callback, uint3
 		zwlr_foreign_toplevel_manager_v1_add_listener(toplevel_manager,
 				&toplevel_manager_listener, NULL);
 
-		if ( xdg_output_manager != NULL )
-			for (size_t i = 0; i < outputs.length; i++)
-			{
-				struct Output *output = (struct Output *)outputs.items[i];
-				output->xdg_output = zxdg_output_manager_v1_get_xdg_output(
-						xdg_output_manager, output->wl_output);
-				zxdg_output_v1_add_listener(output->xdg_output,
-						&xdg_output_listener, output);
-			}
-
 		sync++;
 		sync_callback = wl_display_sync(wl_display);
 		wl_callback_add_listener(sync_callback, &sync_callback_listener, NULL);
@@ -363,8 +355,8 @@ static void sync_handle_done (void *data, struct wl_callback *wl_callback, uint3
 	else
 	{
 		/* Second sync: Now we have received all toplevel handles and
-		 * their events and (if available) all XDG-Output events.
-		 * Time to leave the main loop, print all data and exit.
+		 * their events and all wl_output events. Time to leave the main
+		 * loop, print all data and exit.
 		 */
 		loop = false;
 	}
@@ -547,8 +539,6 @@ static void destroy_output (struct Output *output)
 	list_finish(&output->toplevels);
 	if ( output->wl_output != NULL )
 		wl_output_destroy(output->wl_output);
-	if ( output->xdg_output != NULL )
-		zxdg_output_v1_destroy(output->xdg_output);
 	if ( output->name != NULL )
 		free(output->name);
 	free(output);
@@ -744,8 +734,6 @@ int main(int argc, char *argv[])
 		wl_callback_destroy(sync_callback);
 	if ( toplevel_manager != NULL )
 		zwlr_foreign_toplevel_manager_v1_destroy(toplevel_manager);
-	if ( xdg_output_manager != NULL )
-		zxdg_output_manager_v1_destroy(xdg_output_manager);
 	if ( wl_registry != NULL )
 		wl_registry_destroy(wl_registry);
 	wl_display_disconnect(wl_display);
