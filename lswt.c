@@ -35,7 +35,7 @@
 
 #include "wlr-foreign-toplevel-management-unstable-v1.h"
 
-#define VERSION "1.0.2"
+#define VERSION "1.0.3"
 
 const char usage[] =
 	"Usage: lswt [options...]\n"
