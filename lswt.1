@@ -45,11 +45,6 @@ The \fBstate\fR is a four wide character field, corresponding to the four
 possible toplevel states: maximized, minimized, activated and fullscreen.
 If one of these states is true for a toplevel, the respective character in the
 field is set to the first letter of the state name, otherwise it is \-.
-.P
-The machine readable formats additionally expose the object id of the toplevel
-handle.
-Please note that this can not be used to reliably identify unique toplevels,
-because the Wayland protocol allows to recycle object ids.
 .
 .
 .SH OPTIONS
@@ -70,7 +65,7 @@ Print version and exit.
 .RS
 Output data as tab separated values.
 The values are ordered as follows: title, app-id, maximized, minimized,
-activated, fullscreen, outputs, object-id.
+activated, fullscreen, outputs.
 Title and app-id are quoted.
 States are boolean (\(dqtrue\(dq or \(dqfalse\(dq).
 The outputs field is a comma separated list of the quoted names of outputs the

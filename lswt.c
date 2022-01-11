@@ -426,7 +426,6 @@ static void print_toplevel (struct Toplevel *toplevel)
 		fputb(toplevel->activated, stdout);
 		fputs(",\n        \"fullscreen\": ", stdout);
 		fputb(toplevel->fullscreen, stdout);
-		fprintf(stdout, ",\n        \"object-id\": %ld", (uint64_t)toplevel->handle);
 		fputs(",\n        \"outputs\": [", stdout);
 
 		bool prev = false;
@@ -493,8 +492,6 @@ static void print_toplevel (struct Toplevel *toplevel)
 					quoted_fputs(output->name, stdout);
 			}
 		}
-
-		fprintf(stdout, "\t%ld", (uint64_t)toplevel->handle);
 
 		fputc('\n', stdout);
 	}
