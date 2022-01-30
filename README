@@ -2,3 +2,5 @@ lswt - list Wayland toplevels
 
 Requires the Wayland server to implement the foreign-toplevel-management-unstable-v1
 protocol extension.
+
+lswt is licensed under the GPLv3.
