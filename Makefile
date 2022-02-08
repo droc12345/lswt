@@ -22,9 +22,9 @@ $(OBJ): $(GEN)
 	$(SCANNER) client-header < $< > $@
 
 install: lswt
-	install -D lswt            $(DESTDIR)$(BINDIR)/lswt
-	install -D lswt.1          $(DESTDIR)$(MANDIR)/man1/lswt.1
-	install -D bash-completion $(DESTDIR)$(BASHCOMPDIR)/lswt 
+	install        -D lswt            $(DESTDIR)$(BINDIR)/lswt
+	install -m 644 -D lswt.1          $(DESTDIR)$(MANDIR)/man1/lswt.1
+	install        -D bash-completion $(DESTDIR)$(BASHCOMPDIR)/lswt
 
 uninstall:
 	$(RM) $(DESTDIR)$(BINDIR)/lswt
