@@ -110,6 +110,14 @@ struct Toplevel
 	bool output;
 	list_t outputs;
 	// TODO list_t children
+
+	/**
+	 * True if this toplevel has already been added to lists, false
+	 * otherwise. Used to prevent accidentally appending the same toplevel
+	 * multiple times if more than one toplevel_handle.done event for a
+	 * toplevel is recevied.
+	 */
+	bool listed;
 };
 
 struct Output
@@ -184,6 +192,10 @@ static void handle_handle_state (void *data, struct zwlr_foreign_toplevel_handle
 static void handle_handle_done (void *data, struct zwlr_foreign_toplevel_handle_v1 *handle)
 {
 	struct Toplevel *toplevel = (struct Toplevel *)data;
+	if (toplevel->listed)
+		return;
+	toplevel->listed = true;
+
 	list_append_item(&all_toplevels, (void *)toplevel);
 
 	if (! toplevel->output)
