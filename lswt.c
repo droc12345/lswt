@@ -334,16 +334,16 @@ static void sync_handle_done (void *data, struct wl_callback *wl_callback, uint3
 		 * which causes the server to not send the output_enter events.
 		 * See: https://github.com/swaywm/wlroots/issues/1567
 		 */
-		if ( buffered_registry_name == 0 )
+		if ( buffered_registry_name == 0 || buffered_registry_version < 3 )
 		{
-			fputs("ERROR: Wayland server does not support foreign-toplevel-management-unstable-v1.\n", stderr);
+			fputs("ERROR: Wayland server does not support foreign-toplevel-management-unstable-v1 version 3 or higher.\n", stderr);
 			ret = EXIT_FAILURE;
 			loop = false;
 			return;
 		}
 
 		toplevel_manager = wl_registry_bind(wl_registry, buffered_registry_name,
-			&zwlr_foreign_toplevel_manager_v1_interface, buffered_registry_version);
+			&zwlr_foreign_toplevel_manager_v1_interface, 3);
 		zwlr_foreign_toplevel_manager_v1_add_listener(toplevel_manager,
 				&toplevel_manager_listener, NULL);
 
