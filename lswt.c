@@ -40,8 +40,17 @@ const char usage[] =
 	"Usage: lswt [options...]\n"
 	"  -t, --tsv      Output data as tab separated values.\n"
 	"  -j, --json     Output data in JSON format.\n"
+	"  -d, --dot      Output data in dot format.\n"
 	"  -h, --help     Print this helpt text and exit.\n"
 	"  -v, --version  Print version and exit.\n";
+
+enum Output_type
+{
+	NORMAL,
+	JSON,
+	TSV,
+	DOT,
+};
 
 /* wl_list is not useful for what we want to do, so we need our own little list type. */
 typedef struct
@@ -83,8 +92,7 @@ static void list_append_item (list_t *list, void *item)
 
 int ret = EXIT_SUCCESS;
 bool loop = true;
-bool json = false;
-bool tsv = false;
+enum Output_type output_type = NORMAL;
 struct wl_display *wl_display = NULL;
 struct wl_registry *wl_registry = NULL;
 struct wl_callback *sync_callback = NULL;
@@ -417,7 +425,7 @@ static void fputb (bool bl, FILE *restrict f)
 
 static void print_toplevel (struct Toplevel *toplevel)
 {
-	if (json)
+	if ( output_type == JSON )
 	{
 		static bool json_prev = false;
 		if (json_prev)
@@ -462,7 +470,7 @@ static void print_toplevel (struct Toplevel *toplevel)
 
 		fputs(" ]\n    }", stdout);
 	}
-	else if (tsv)
+	else if ( output_type == TSV )
 	{
 		quoted_fputs(toplevel->title, stdout);
 		fputc('\t', stdout);
@@ -505,6 +513,38 @@ static void print_toplevel (struct Toplevel *toplevel)
 		}
 
 		fputc('\n', stdout);
+	}
+	else if ( output_type == DOT )
+	{
+		fprintf(stdout, "    toplevel%d [label=<\n"
+				"    <table border=\"0\" cellborder=\"1\" cellspacing=\"0\">\n"
+				"    <tr><td><b>%s</b></td></tr>\n"
+				"    <tr><td>%s</td></tr>\n",
+				toplevel->i, toplevel->title, toplevel->app_id);
+		if (toplevel->maximized)
+			fputs("    <tr><td>maximized</td></tr>\n", stdout);
+		if (toplevel->minimized)
+			fputs("    <tr><td>minimized</td></tr>\n", stdout);
+		if (toplevel->activated)
+			fputs("    <tr><td>activated</td></tr>\n", stdout);
+		if (toplevel->fullscreen)
+			fputs("    <tr><td>fullscreen</td></tr>\n", stdout);
+		fputs("    </table>>]\n", stdout);
+
+		for (size_t i = 0; i < toplevel->outputs.length; i++)
+		{
+			struct Output *output = (struct Output *)toplevel->outputs.items[i];
+
+			if ( output == no_output )
+				break;
+
+			if ( output->name == NULL )
+				fprintf(stdout, "\"%d\" -> \"toplevel%d\"\n",
+						output->global_name, toplevel->i);
+			else
+				fprintf(stdout, "\"%s\" -> \"toplevel%d\"\n",
+						output->name, toplevel->i);
+		}
 	}
 	else
 	{
@@ -554,20 +594,52 @@ static void destroy_output (struct Output *output)
 
 static void dump_and_free_data (void)
 {
-	if ( json || tsv || outputs.length == 1 )
+	if ( output_type != NORMAL ||outputs.length == 1 )
 	{
-		if (json)
-			fputs("[\n", stdout);
+		switch (output_type)
+		{
+			case JSON:
+				fputs("[\n", stdout);
+				break;
+
+			case DOT:
+				fputs("digraph lswt {\n"
+						"    node [shape=plain]\n", stdout);
+				break;
+
+			default:
+				break;
+		}
 
 		print_and_destroy_toplevels(&all_toplevels);
-
-		if (json)
-			fputs("\n]\n", stdout);
 
 		for (size_t i = 0; i < outputs.length; i++)
 		{
 			struct Output *output = (struct Output *)outputs.items[i];
+
+			if ( output_type == DOT )
+			{
+				if ( output->name == NULL )
+					fprintf(stdout, "    \"%d\"[style=filled, shape=box]\n", output->global_name);
+				else
+					fprintf(stdout, "    \"%s\"[style=filled, shape=box]\n", output->name);
+			}
+
 			destroy_output(output);
+		}
+
+		switch (output_type)
+		{
+			case JSON:
+				fputs("\n]\n", stdout);
+				break;
+
+			case DOT:
+				fputs("}\n", stdout);
+				break;
+
+			default:
+				break;
 		}
 	}
 	else
@@ -679,9 +751,11 @@ int main(int argc, char *argv[])
 	if ( argc > 0 ) for (int i = 1; i < argc; i++)
 	{
 		if ( strcmp(argv[i], "-j") == 0 || strcmp(argv[i], "--json") == 0 )
-			json = true;
+			output_type = JSON;
 		else if ( strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--tsv") == 0 )
-			tsv = true;
+			output_type = TSV;
+		else if ( strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--dot") == 0 )
+			output_type = DOT;
 		else if ( strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0 )
 		{
 			fputs("lswt version " VERSION "\n", stderr);

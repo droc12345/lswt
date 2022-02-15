@@ -11,6 +11,8 @@ lswt \- list Wayland toplevels
 .OP \-\-tsv
 .OP \-j
 .OP \-\-json
+.OP \-d
+.OP \-\-dot
 .YS
 .
 .SY lswt
@@ -76,6 +78,13 @@ toplevel is on or \(dqnone\(dq if the toplevel is not on any output.
 \fB-j\fR, \fB--json\fR
 .RS
 Output data in the JSON format.
+.RE
+.
+.P
+\fB-d\fR, \fB--dot\fR
+.RS
+Output data in the dot format.
+Can be used with a graphviz visualizer to generate a diagram of all toplevels.
 .RE
 .
 .
