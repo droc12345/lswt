@@ -539,10 +539,10 @@ static void print_toplevel (struct Toplevel *toplevel)
 				break;
 
 			if ( output->name == NULL )
-				fprintf(stdout, "\"%d\" -> \"toplevel%d\"\n",
+				fprintf(stdout, "    \"%d\" -> \"toplevel%d\"\n",
 						output->global_name, toplevel->i);
 			else
-				fprintf(stdout, "\"%s\" -> \"toplevel%d\"\n",
+				fprintf(stdout, "    \"%s\" -> \"toplevel%d\"\n",
 						output->name, toplevel->i);
 		}
 	}
