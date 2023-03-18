@@ -7,8 +7,8 @@ BASHCOMPDIR=$(PREFIX)/share/bash-completion/completions
 
 CFLAGS=-Wall -Werror -Wextra -Wpedantic -Wno-unused-parameter -Wconversion -Wformat-security -Wformat -Wsign-conversion -Wfloat-conversion -Wunused-result
 LIBS=-lwayland-client
-OBJ=lswt.o wlr-foreign-toplevel-management-unstable-v1.o
-GEN=wlr-foreign-toplevel-management-unstable-v1.c wlr-foreign-toplevel-management-unstable-v1.h
+OBJ=lswt.o wlr-foreign-toplevel-management-unstable-v1.o ext-foreign-toplevel-list-v1.o
+GEN=wlr-foreign-toplevel-management-unstable-v1.c wlr-foreign-toplevel-management-unstable-v1.h ext-foreign-toplevel-list-v1.c ext-foreign-toplevel-list-v1.h
 
 lswt: $(OBJ)
 	$(CC) $(LDFLAGS) -o $@ $(OBJ) $(LIBS)
