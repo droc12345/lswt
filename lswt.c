@@ -42,6 +42,7 @@
 #define VERSION "1.1.0"
 
 #define DEBUG_LOG(FMT, ...) { if (debug_log) fprintf(stderr, "DEBUG: " FMT "\n" __VA_OPT__(,) __VA_ARGS__); }
+#define BOOL_TO_STR(B) (B) ? "true" : "false"
 
 const char usage[] =
 	"Usage: lswt [options...]\n"
@@ -83,6 +84,32 @@ struct wl_list toplevels;
 
 static void noop () {}
 
+/**********************
+ *                    *
+ *    Capabilities    *
+ *                    *
+ **********************/
+bool support_fullscreen = false;
+bool support_activated = false;
+bool support_maximized = false;
+bool support_minimized = false;
+bool support_identifier = false;
+
+static void update_capabilities (void)
+{
+	if ( zwlr_toplevel_manager != NULL )
+	{
+		support_fullscreen = true;
+		support_activated = true;
+		support_maximized = true;
+		support_minimized = true;
+	}
+	else if ( ext_toplevel_list != NULL )
+	{
+		support_identifier = true;
+	}
+}
+
 /******************
  *                *
  *    Toplevel    *
@@ -97,13 +124,16 @@ struct Toplevel
 
 	char *title;
 	char *app_id;
-	char *identifier;
 
-	// TODO There may be extension protocol for ext_foreign_toplevel_list
-	//      eventually, that allow us to get additional information.
-	//      It should be fairly trivial to support those: Just add the
-	//      necessary variables and check if we have the necessary interface
-	//      bound when printing.
+	/**
+	 * Optional data. Whether these are supported depends on the bound
+	 * protocol(s). See update_capabilities() and related globals.
+	 */
+	char *identifier;
+	bool fullscreen;
+	bool activated;
+	bool maximized;
+	bool minimized;
 
 	/**
 	 * True if this toplevel has already been added to the list, false
@@ -131,6 +161,11 @@ static struct Toplevel *toplevel_new (void)
 	new->app_id = NULL;
 	new->identifier = NULL;
 	new->listed = false;
+
+	new->fullscreen = false;
+	new->activated = false;
+	new->maximized = false;
+	new->minimized = false;
 
 	return new;
 }
@@ -192,6 +227,30 @@ static void toplevel_set_identifier (struct Toplevel *self, const char *identifi
 		free(self->identifier);
 	}
 	self->identifier = strdup(identifier);
+}
+
+static void toplevel_set_fullscreen (struct Toplevel *self, bool fullscreen)
+{
+	DEBUG_LOG("Toplevel set fullscreen: %p, '%d'", (void*)self, fullscreen);
+	self->fullscreen = fullscreen;
+}
+
+static void toplevel_set_activated (struct Toplevel *self, bool activated)
+{
+	DEBUG_LOG("Toplevel set activated: %p, '%d'", (void*)self, activated);
+	self->activated = activated;
+}
+
+static void toplevel_set_maximized (struct Toplevel *self, bool maximized)
+{
+	DEBUG_LOG("Toplevel set maximized: %p, '%d'", (void*)self, maximized);
+	self->maximized = maximized;
+}
+
+static void toplevel_set_minimized (struct Toplevel *self, bool minimized)
+{
+	DEBUG_LOG("Toplevel set minimized: %p, '%d'", (void*)self, minimized);
+	self->minimized = minimized;
 }
 
 static void toplevel_done (struct Toplevel *self)
@@ -280,6 +339,31 @@ static void zwlr_foreign_handle_handle_app_id (void *data, struct zwlr_foreign_t
 	toplevel_set_app_id(toplevel, app_id);
 }
 
+static void zwlr_foreign_handle_handle_state (void *data, struct zwlr_foreign_toplevel_handle_v1 *handle,
+		struct wl_array *states)
+{
+	struct Toplevel *toplevel = (struct Toplevel *)data;
+
+	bool fullscreen = false;
+	bool activated = false;
+	bool minimized = false;
+	bool maximized = false;
+
+	uint32_t *state;
+	wl_array_for_each(state, states) switch (*state)
+	{
+		case ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_STATE_MAXIMIZED: maximized = true; break;
+		case ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_STATE_MINIMIZED: minimized = true; break;
+		case ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_STATE_ACTIVATED: activated = true; break;
+		case ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_STATE_FULLSCREEN: fullscreen = true; break;
+	}
+
+	toplevel_set_fullscreen(toplevel, fullscreen);
+	toplevel_set_activated(toplevel, activated);
+	toplevel_set_minimized(toplevel, minimized);
+	toplevel_set_maximized(toplevel, maximized);
+}
+
 static void zwlr_foreign_handle_handle_done (void *data, struct zwlr_foreign_toplevel_handle_v1 *handle)
 {
 	struct Toplevel *toplevel = (struct Toplevel *)data;
@@ -293,7 +377,7 @@ static const struct zwlr_foreign_toplevel_handle_v1_listener zwlr_handle_listene
 	.output_enter = noop,
 	.output_leave = noop,
 	.parent       = noop,
-	.state        = noop,
+	.state        = zwlr_foreign_handle_handle_state,
 	.title        = zwlr_foreign_handle_handle_title,
 };
 
@@ -436,6 +520,22 @@ static void write_custom (char *str, FILE *restrict f)
 		fputs(str, f);
 }
 
+static void write_custom_optional (bool supported, char *str, FILE *restrict f)
+{
+	if (supported)
+		write_custom(str, f);
+	else
+		fputs("unsupported", f);
+}
+
+static void write_custom_optional_bool (bool supported, bool b, FILE *restrict f)
+{
+	if (supported)
+		fputs(b ? "true" : "false", f);
+	else
+		fputs("unsupported", f);
+}
+
 /** Return the amount of bytes printed when printing the given string. */
 static size_t real_strlen (const char *str)
 {
@@ -487,9 +587,13 @@ static bool out_check_custom_format (const char *fmt)
 	{
 		switch (*fmt)
 		{
-			case 'i': // Identifier.
 			case 't': // Title.
 			case 'a': // App-Id.
+			case 'i': // Identifier.
+			case 'A': // Activated.
+			case 'f': // Fullscreen.
+			case 'm': // Minimized.
+			case 'M': // Maximized.
 				continue;
 
 			default:
@@ -518,14 +622,30 @@ static void out_write_toplevel (struct Toplevel *toplevel)
 				fputs(",\n", stdout);
 			else
 				json_prev = true;
+			fputs("        {\n", stdout);
 
-			fputs("    {\n        \"title\": ", stdout);
+			if (support_activated)
+				fprintf(stdout, "            \"activated\": %s,\n", BOOL_TO_STR(toplevel->activated));
+			if (support_fullscreen)
+				fprintf(stdout, "            \"fullscreen\": %s,\n", BOOL_TO_STR(toplevel->fullscreen));
+			if (support_minimized)
+				fprintf(stdout, "            \"minimized\": %s,\n", BOOL_TO_STR(toplevel->minimized));
+			if (support_maximized)
+				fprintf(stdout, "            \"maximized\": %s,\n", BOOL_TO_STR(toplevel->maximized));
+			if (support_identifier)
+				fprintf(stdout, "            \"identifier\": %s,\n", toplevel->identifier);
+
+			/* Whoever designed JSON made the incredibly weird
+			 * mistake of enforcing that there is no comma on the
+			 * last item. Luckily, there are two fields we know
+			 * will always be printed. So by putting them last,
+			 * we can easiely implement that. :)
+			 */
+			fputs("            \"title\": ", stdout);
 			write_json(toplevel->title, stdout);
-			fputs(",\n        \"app_id\": ", stdout);
+			fputs(",\n            \"app-id\": ", stdout);
 			write_json(toplevel->app_id, stdout);
-			fputs(",\n        \"identifier\": ", stdout);
-			write_json(toplevel->identifier, stdout);
-			fputs("\n    }", stdout);
+			fputs("\n        }", stdout);
 			break;
 
 		case CUSTOM:
@@ -543,7 +663,11 @@ static void out_write_toplevel (struct Toplevel *toplevel)
 				{
 					case 't': write_custom(toplevel->title, stdout); break;
 					case 'a': write_custom(toplevel->app_id, stdout); break;
-					case 'i': write_custom(toplevel->identifier, stdout); break;
+					case 'i': write_custom_optional(support_identifier, toplevel->identifier, stdout); break;
+					case 'A': write_custom_optional_bool(support_activated, toplevel->activated, stdout); break;
+					case 'f': write_custom_optional_bool(support_fullscreen, toplevel->fullscreen, stdout); break;
+					case 'm': write_custom_optional_bool(support_minimized, toplevel->minimized, stdout); break;
+					case 'M': write_custom_optional_bool(support_maximized, toplevel->maximized, stdout); break;
 					default: assert(false); break;
 				}
 			}
@@ -566,7 +690,23 @@ static void out_start (void)
 			return;
 
 		case JSON:
-			puts("[\n");
+			fprintf(stdout,
+					"{\n"
+					"    \"supported-data\": {\n"
+					"        \"title\": true,\n"
+					"        \"app-id\": true,\n"
+					"        \"identifier\": %s,\n"
+					"        \"fullscreen\": %s,\n"
+					"        \"activated\": %s,\n"
+					"        \"minimized\": %s,\n"
+					"        \"maximized\": %s\n"
+					"    },\n"
+					"    \"toplevels\": [\n",
+					BOOL_TO_STR(support_identifier),
+					BOOL_TO_STR(support_fullscreen),
+					BOOL_TO_STR(support_activated),
+					BOOL_TO_STR(support_minimized),
+					BOOL_TO_STR(support_maximized));
 			break;
 
 		case CUSTOM:
@@ -582,7 +722,7 @@ static void out_finish (void)
 			return;
 
 		case JSON:
-			puts("\n]\n");
+			fputs("\n    ]\n}\n", stdout);
 			break;
 
 		case CUSTOM:
@@ -675,6 +815,7 @@ static void sync_handle_done (void *data, struct wl_callback *wl_callback, uint3
 		 * their events. Time to leave the main loop, print all data and
 		 * exit.
 		 */
+		update_capabilities();
 		loop = false;
 	}
 }
