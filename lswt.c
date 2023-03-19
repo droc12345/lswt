@@ -399,10 +399,11 @@ static void write_maybe_quoted (char *str, FILE *restrict f)
 		fputs(str, f);
 }
 
-static void write_quoted (char *str, FILE *restrict f)
+/** Always quote strings, except if they are NULL. */
+static void write_json (char *str, FILE *restrict f)
 {
 	if ( str == NULL )
-		fputs("\"<NULL>\"", f);
+		fputs("null", f);
 	else
 		quoted_fputs(NULL, str, f);
 }
@@ -454,11 +455,11 @@ static void out_write_toplevel (struct Toplevel *toplevel)
 				json_prev = true;
 
 			fputs("    {\n        \"title\": ", stdout);
-			write_quoted(toplevel->title, stdout);
+			write_json(toplevel->title, stdout);
 			fputs(",\n        \"app_id\": ", stdout);
-			write_quoted(toplevel->app_id, stdout);
+			write_json(toplevel->app_id, stdout);
 			fputs(",\n        \"identifier\": ", stdout);
-			write_quoted(toplevel->identifier, stdout);
+			write_json(toplevel->identifier, stdout);
 			fputs("\n    }", stdout);
 			break;
 	}
