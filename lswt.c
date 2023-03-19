@@ -24,6 +24,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <assert.h>
 #include <wayland-client.h>
 
 #ifdef __linux__
@@ -42,16 +43,19 @@
 
 const char usage[] =
 	"Usage: lswt [options...]\n"
-	"  -j, --json     Output data in JSON format.\n"
-	"  -h, --help     Print this helpt text and exit.\n"
-	"  -v, --version  Print version and exit.\n";
+	"  -h,        --help           Print this helpt text and exit.\n"
+	"  -v,        --version        Print version and exit.\n"
+	"  -j,        --json           Output data in JSON format.\n"
+	"  -c <fmt>, --custom <fmt>    Define a custom line-based output format.\n";
 
 enum Output_format
 {
 	NORMAL,
+	CUSTOM,
 	JSON,
 };
 enum Output_format output_format = NORMAL;
+char *custom_output_format = NULL;
 
 /** Used for padding when printing output in NORMAL format. */
 size_t longest_app_id = 7; // strlen("app-id:")
@@ -408,6 +412,15 @@ static void write_json (char *str, FILE *restrict f)
 		quoted_fputs(NULL, str, f);
 }
 
+/** Never quote strings, print "<NULL>" on NULL. */
+static void write_custom (char *str, FILE *restrict f)
+{
+	if ( str == NULL )
+		fputs("<NULL>", f);
+	else
+		fputs(str, f);
+}
+
 /** Return the amount of bytes printed when printing the given string. */
 static size_t real_strlen (const char *str)
 {
@@ -436,6 +449,43 @@ static size_t real_strlen (const char *str)
 	return i;
 }
 
+/**
+ * Checks whether a custom output format is valid. Prints error messages
+ * accordingly.
+ */
+static bool out_check_custom_format (const char *fmt)
+{
+	assert(fmt != NULL);
+	const size_t len = strlen(fmt);
+	if ( len == 1 || len == 0 )
+	{
+		fputs("ERROR: Invalid custom format: Requires at least delimiter and one field.\n", stderr);
+		return false;
+	}
+	if (!isascii(*fmt))
+	{
+		fputs("ERROR: Invalid custom format: Delimiter must be an ASCII character.\n", stderr);
+		return false;
+	}
+	fmt++;
+	for (; *fmt != '\0'; fmt++)
+	{
+		switch (*fmt)
+		{
+			case 'i': // Identifier.
+			case 't': // Title.
+			case 'a': // App-Id.
+				continue;
+
+			default:
+				fprintf(stderr, "ERROR: Invalid custom format: Unknown field name: '%c'.\n", *fmt);
+				return false;
+		}
+	}
+
+	return true;
+}
+
 static void out_write_toplevel (struct Toplevel *toplevel)
 {
 	static bool json_prev = false;
@@ -462,6 +512,28 @@ static void out_write_toplevel (struct Toplevel *toplevel)
 			write_json(toplevel->identifier, stdout);
 			fputs("\n    }", stdout);
 			break;
+
+		case CUSTOM:
+			assert(custom_output_format != NULL);
+			assert(strlen(custom_output_format) > 1);
+			bool need_delim = false;
+			char *fmt = custom_output_format + 1;
+			for (; *fmt != '\0'; fmt++)
+			{
+				if (need_delim)
+					fputc(custom_output_format[0], stdout);
+				else
+					need_delim = true;
+				switch (*fmt)
+				{
+					case 't': write_custom(toplevel->title, stdout); break;
+					case 'a': write_custom(toplevel->app_id, stdout); break;
+					case 'i': write_custom(toplevel->identifier, stdout); break;
+					default: assert(false); break;
+				}
+			}
+			fputs("\n", stdout);
+			break;
 	}
 }
 
@@ -481,6 +553,9 @@ static void out_start (void)
 		case JSON:
 			puts("[\n");
 			break;
+
+		case CUSTOM:
+			break;
 	}
 }
 
@@ -493,6 +568,9 @@ static void out_finish (void)
 
 		case JSON:
 			puts("\n]\n");
+			break;
+
+		case CUSTOM:
 			break;
 	}
 }
@@ -611,10 +689,10 @@ static void handle_error (int signum)
 		"\n"
 		"┌──────────────────────────────────────────┐\n"
 		"│                                          │\n"
-		"│           lswt has crashed.              │\n"
+		"│             lswt has crashed.            │\n"
 		"│                                          │\n"
-		"│    This is likely a bug, so please       │\n"
-		"│    report this to the mailing list.      │\n"
+		"│   This is most likely a bug, so please   │\n"
+		"│     report this to the mailing list.     │\n"
 		"│                                          │\n"
 		"│  ~leon_plickat/public-inbox@lists.sr.ht  │\n"
 		"│                                          │\n"
@@ -671,24 +749,62 @@ int main(int argc, char *argv[])
 	if ( argc > 0 ) for (int i = 1; i < argc; i++)
 	{
 		if ( strcmp(argv[i], "-j") == 0 || strcmp(argv[i], "--json") == 0 )
+		{
+			if ( output_format != NORMAL )
+			{
+				fputs("ERROR: output format may only be specified once.", stderr);
+				ret = EXIT_FAILURE;
+				goto cleanup;
+			}
 			output_format = JSON;
+		}
+		else if ( strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--custom") == 0 )
+		{
+			if ( output_format != NORMAL )
+			{
+				fputs("ERROR: output format may only be specified once.", stderr);
+				ret = EXIT_FAILURE;
+				goto cleanup;
+			}
+			if ( argc == i + 1 )
+			{
+				fprintf(stderr, "ERROR: flag '%s' requires a parameter.", argv[i]);
+				ret = EXIT_FAILURE;
+				goto cleanup;
+			}
+			if (!out_check_custom_format(argv[i+1]))
+			{
+				ret = EXIT_FAILURE;
+				goto cleanup;
+			}
+			output_format = CUSTOM;
+			custom_output_format = strdup(argv[i+1]);
+			i++;
+		}
 		else if ( strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0 )
 		{
 			fputs("lswt version " VERSION "\n", stderr);
-			return EXIT_SUCCESS;
+			ret = EXIT_SUCCESS;
+			goto cleanup;
 		}
 		else if ( strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0 )
 		{
 			fputs(usage, stderr);
-			return EXIT_SUCCESS;
+			ret = EXIT_SUCCESS;
+			goto cleanup;
 		}
 		else
 		{
 			fprintf(stderr, "Invalid option: %s\n", argv[i]);
 			fputs(usage, stderr);
-			return EXIT_FAILURE;
+			ret = EXIT_FAILURE;
+			goto cleanup;
 		}
 	}
+
+	/* Behold: After this comment we may no longer goto cleanup, because
+	 * Wayland magic happens, which can cause Toplevels to be allocated.
+	 */
 
 	wl_list_init(&toplevels);
 
@@ -727,6 +843,7 @@ int main(int argc, char *argv[])
 	else
 		free_data();
 
+	/* Wayland cleanup. */
 	if ( sync_callback != NULL )
 		wl_callback_destroy(sync_callback);
 	if ( zwlr_toplevel_manager != NULL )
@@ -736,6 +853,10 @@ int main(int argc, char *argv[])
 	if ( wl_registry != NULL )
 		wl_registry_destroy(wl_registry);
 	wl_display_disconnect(wl_display);
+
+cleanup:
+	if ( custom_output_format != NULL )
+		free(custom_output_format);
 
 	return ret;
 }
