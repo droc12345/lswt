@@ -823,12 +823,6 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	/* Behold: After this comment we may no longer goto cleanup, because
-	 * Wayland magic happens, which can cause Toplevels to be allocated.
-	 */
-
-	wl_list_init(&toplevels);
-
 	/* We query the display name here instead of letting wl_display_connect()
 	 * figure it out itself, because libwayland (for legacy reasons) falls
 	 * back to using "wayland-0" when $WAYLAND_DISPLAY is not set, which is
@@ -838,17 +832,23 @@ int main(int argc, char *argv[])
 	if ( display_name == NULL )
 	{
 		fputs("ERROR: WAYLAND_DISPLAY is not set.\n", stderr);
-		return EXIT_FAILURE;
+		ret = EXIT_FAILURE;
+		goto cleanup;
 	}
 	DEBUG_LOG("Trying to connect to display '%s'.", display_name);
 
+	/* Behold: If this succeeds, we may no longer goto cleanup, because
+	 * Wayland magic happens, which can cause Toplevels to be allocated.
+	 */
 	wl_display = wl_display_connect(display_name);
 	if ( wl_display == NULL )
 	{
 		fputs("ERROR: Can not connect to wayland display.\n", stderr);
-		return EXIT_FAILURE;
+		ret = EXIT_FAILURE;
+		goto cleanup;
 	}
 
+	wl_list_init(&toplevels);
 	wl_registry = wl_display_get_registry(wl_display);
 	wl_registry_add_listener(wl_registry, &registry_listener, NULL);
 
