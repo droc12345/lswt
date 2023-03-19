@@ -41,6 +41,8 @@
 
 #define VERSION "1.1.0"
 
+#define DEBUG_LOG(FMT, ...) { if (debug_log) fprintf(stderr, "DEBUG: " FMT "\n" __VA_OPT__(,) __VA_ARGS__); }
+
 const char usage[] =
 	"Usage: lswt [options...]\n"
 	"  -h,        --help           Print this helpt text and exit.\n"
@@ -63,6 +65,7 @@ const size_t max_app_id_padding = 40;
 
 int ret = EXIT_SUCCESS;
 bool loop = true;
+bool debug_log = false;
 
 struct wl_display *wl_display = NULL;
 struct wl_registry *wl_registry = NULL;
@@ -120,6 +123,8 @@ static struct Toplevel *toplevel_new (void)
 		return NULL;
 	}
 
+	DEBUG_LOG("New toplevel: %p", (void*)new);
+
 	new->zwlr_handle = NULL;
 	new->ext_handle = NULL;
 	new->title = NULL;
@@ -133,6 +138,8 @@ static struct Toplevel *toplevel_new (void)
 /** Destroys a toplevel and removes it from the list, if it is listed. */
 static void toplevel_destroy (struct Toplevel *self)
 {
+	DEBUG_LOG("Destroying toplevel: %p", (void*)self);
+
 	if ( self->zwlr_handle != NULL )
 		zwlr_foreign_toplevel_handle_v1_destroy(self->zwlr_handle);
 	if ( self->ext_handle != NULL )
@@ -151,6 +158,8 @@ static void toplevel_destroy (struct Toplevel *self)
 /** Set the title of the toplevel. Called from protocol implementations. */
 static void toplevel_set_title (struct Toplevel *self, const char *title)
 {
+	DEBUG_LOG("Toplevel set title: %p, '%s'", (void*)self, title);
+
 	if ( self->title != NULL )
 		free(self->title);
 	self->title = strdup(title);
@@ -160,6 +169,8 @@ static void toplevel_set_title (struct Toplevel *self, const char *title)
 static size_t real_strlen (const char *str);
 static void toplevel_set_app_id (struct Toplevel *self, const char *app_id)
 {
+	DEBUG_LOG("Toplevel set app-id: %p, '%s'", (void*)self, app_id);
+
 	if ( self->app_id != NULL )
 		free(self->app_id);
 	self->app_id = strdup(app_id);
@@ -173,6 +184,8 @@ static void toplevel_set_app_id (struct Toplevel *self, const char *app_id)
 /** Set the identifier of the toplevel. Called from protocol implementations. */
 static void toplevel_set_identifier (struct Toplevel *self, const char *identifier)
 {
+	DEBUG_LOG("Toplevel set identifier: %p, '%s'", (void*)self, identifier);
+
 	if ( self->identifier != NULL )
 	{
 		fputs("ERROR: protocol-error: compositor changed identifier of toplevel, which is forbidden by the protocol. Continuing anyway...\n", stderr);
@@ -183,6 +196,8 @@ static void toplevel_set_identifier (struct Toplevel *self, const char *identifi
 
 static void toplevel_done (struct Toplevel *self)
 {
+	DEBUG_LOG("Toplevel done: %p", (void*)self);
+
 	if (self->listed)
 		return;
 	self->listed = true;
@@ -590,6 +605,7 @@ static void registry_handle_global (void *data, struct wl_registry *registry,
 			return;
 		if ( version < 3 )
 			return;
+		DEBUG_LOG("Binding zwlr-foreign-toplevel-manager-v1.");
 		zwlr_toplevel_manager = wl_registry_bind(wl_registry, name,
 			&zwlr_foreign_toplevel_manager_v1_interface, 3);
 		zwlr_foreign_toplevel_manager_v1_add_listener(zwlr_toplevel_manager,
@@ -600,6 +616,7 @@ static void registry_handle_global (void *data, struct wl_registry *registry,
 		/* No need to bind the ext interface if we already have the zwlr one. */
 		if ( zwlr_toplevel_manager != NULL )
 			return;
+		DEBUG_LOG("Binding ext-foreign-toplevel-list-v1.");
 		ext_toplevel_list = wl_registry_bind(wl_registry, name,
 			&ext_foreign_toplevel_list_v1_interface, 1);
 		ext_foreign_toplevel_list_v1_add_listener(ext_toplevel_list,
@@ -619,10 +636,12 @@ static const struct wl_callback_listener sync_callback_listener = {
 
 static void sync_handle_done (void *data, struct wl_callback *wl_callback, uint32_t other_data)
 {
+	static int sync = 0;
+	DEBUG_LOG("sync callback %d.", sync);
+
 	wl_callback_destroy(wl_callback);
 	sync_callback = NULL;
 
-	static int sync = 0;
 	if ( sync == 0 )
 	{
 		/* First sync: The registry finished advertising globals.
@@ -781,6 +800,8 @@ int main(int argc, char *argv[])
 			custom_output_format = strdup(argv[i+1]);
 			i++;
 		}
+		else if ( strcmp(argv[i], "--debug") == 0 )
+			debug_log = true;
 		else if ( strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0 )
 		{
 			fputs("lswt version " VERSION "\n", stderr);
@@ -819,6 +840,7 @@ int main(int argc, char *argv[])
 		fputs("ERROR: WAYLAND_DISPLAY is not set.\n", stderr);
 		return EXIT_FAILURE;
 	}
+	DEBUG_LOG("Trying to connect to display '%s'.", display_name);
 
 	wl_display = wl_display_connect(display_name);
 	if ( wl_display == NULL )
@@ -833,6 +855,7 @@ int main(int argc, char *argv[])
 	sync_callback = wl_display_sync(wl_display);
 	wl_callback_add_listener(sync_callback, &sync_callback_listener, NULL);
 
+	DEBUG_LOG("Entering main loop.");
 	while ( loop && wl_display_dispatch(wl_display) > 0 );
 
 	/* If nothing went wrong in the main loop we can print and free all data,
@@ -843,7 +866,7 @@ int main(int argc, char *argv[])
 	else
 		free_data();
 
-	/* Wayland cleanup. */
+	DEBUG_LOG("Cleaning up Wayland interfaces.");
 	if ( sync_callback != NULL )
 		wl_callback_destroy(sync_callback);
 	if ( zwlr_toplevel_manager != NULL )
