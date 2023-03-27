@@ -198,6 +198,8 @@ static void toplevel_set_title (struct Toplevel *self, const char *title)
 	if ( self->title != NULL )
 		free(self->title);
 	self->title = strdup(title);
+	if ( self->title == NULL )
+		fprintf(stderr, "ERROR: strdup(): %s\n", strerror(errno));
 }
 
 /** Set the app-id of the toplevel. Called from protocol implementations. */
@@ -209,6 +211,11 @@ static void toplevel_set_app_id (struct Toplevel *self, const char *app_id)
 	if ( self->app_id != NULL )
 		free(self->app_id);
 	self->app_id = strdup(app_id);
+	if ( self->app_id == NULL )
+	{
+		fprintf(stderr, "ERROR: strdup(): %s\n", strerror(errno));
+		return;
+	}
 
 	/* Used when printing output in the default human readable format. */
 	const size_t len = real_strlen(app_id);
@@ -227,6 +234,8 @@ static void toplevel_set_identifier (struct Toplevel *self, const char *identifi
 		free(self->identifier);
 	}
 	self->identifier = strdup(identifier);
+	if ( self->identifier == NULL )
+		fprintf(stderr, "ERROR: strdup(): %s\n", strerror(errno));
 }
 
 static void toplevel_set_fullscreen (struct Toplevel *self, bool fullscreen)
