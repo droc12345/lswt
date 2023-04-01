@@ -63,33 +63,21 @@
       Clients which only care about the current state can perform a roundtrip after
       binding this global.
 
-      For each client instantiation of the ext_foreign_toplevel_list_v1 global,
-      the compositor must create a new ext_foreign_toplevel_handle_v1 object for
-      each mapped toplevel for that instance of the ext_foreign_toplevel_list_v1.
-      Compositors must not send existing ext_foreign_toplevel_handle_v1 objects
-      that were created from some other global instance.
+      For each instance of ext_foreign_toplevel_list_v1, the compositor must
+      create a new ext_foreign_toplevel_handle_v1 object for each mapped toplevel.
 
       If a compositor implementation sends the ext_foreign_toplevel_list_v1.finished
       event after the global is bound, the compositor must not send any
       ext_foreign_toplevel_list_v1.toplevel events.
     </description>
 
-    <enum name="error">
-      <description summary="ext_foreign_toplevel_list_v1 errors">
-        These errors are sent in response to ext_foreign_toplevel_list_v1 requests.
-      </description>
-
-      <entry name="defunct_toplevels" value="0"
-          summary="the ext_foreign_toplevel_list_v1 was destroyed before its children"/>
-    </enum>
-
     <event name="toplevel">
       <description summary="a toplevel has been created">
         This event is emitted whenever a new toplevel window is created. It is
         emitted for all toplevels, regardless of the app that has created them.
 
-        All initial properties of the toplevel (title, app_id) will be sent
-        immediately after this event via the corresponding events in
+        All initial properties of the toplevel (identifier, title, app_id) will be sent
+        immediately after this event using the corresponding events for
         ext_foreign_toplevel_handle_v1. The compositor will use the
         ext_foreign_toplevel_handle_v1.done event to indicate when all data has
         been sent.
@@ -125,12 +113,9 @@
         use the ext_foreign_toplevel_list_v1 or after the finished event
         has been received to allow destruction of the object.
 
-        Destroying a ext_foreign_toplevel_list_v1 while there are toplevels still
-        alive created by this ext_foreign_toplevel_list_v1 object is illegal and
-        must result in a defunct_toplevels error. If a client wishes to destroy
-        this object it should send a ext_foreign_toplevel_list_v1.stop request
-        and wait for a ext_foreign_toplevel_list_v1.finished event, then destroy
-        the handles and then this object.
+        If a client wishes to destroy this object it should send a
+        ext_foreign_toplevel_list_v1.stop request and wait for a ext_foreign_toplevel_list_v1.finished
+        event, then destroy the handles and then this object.
       </description>
     </request>
   </interface>
@@ -151,11 +136,11 @@
         until the toplevel is unmapped and then remapped. Destroying a toplevel handle
         is not recommended unless the client is cleaning up child objects
         before destroying the ext_foreign_toplevel_list_v1 object, the toplevel
-        was closed or the toplevel will not be used in the future.
+        was closed or the toplevel handle will not be used in the future.
 
         Other protocols which extend the ext_foreign_toplevel_handle_v1
-        interface should require destructors are called before allowing the
-        toplevel handle to be destroyed.
+        interface should require destructors for extension interfaces be
+        called before allowing the toplevel handle to be destroyed.
       </description>
     </request>
 
@@ -207,18 +192,26 @@
 
     <event name="identifier">
       <description summary="a stable identifier for a toplevel">
-        This identifier is used to check if two toplevel handles are the same.
+        This identifier is used to check if two or more toplevel handles belong
+        to the same toplevel.
 
         The identifier is useful for command line tools or privileged clients
         which may need to reference an exact toplevel across processes or
         instances of the ext_foreign_toplevel_list_v1 global.
 
-        Compositors must ensure the identifier is the same for all handles of the
-        toplevel. The identifier is only valid as long as the toplevel is mapped.
-        If the toplevel is unmapped and then remapped in the future, the identifier
-        must change.
+        The compositor must only send this event when the handle is created.
 
-        The identifier is a string that contains up to 32 random numbers and letters.
+        The identifier must be unique per toplevel and it's handles. Two different
+        toplevels must not have the same identifier. The identifier is only valid
+        as long as the toplevel is mapped. If the toplevel is unmapped the identifier
+        must not be reused. An identifier must not be reused by the compositor to
+        ensure there are no races when sharing identifiers between processes.
+
+        An identifier is a string that contains up to 32 printable ASCII bytes.
+        An identifier must not be an empty string. It is recommended that a
+        compositor includes an opaque generation value in identifiers. How the
+        generation value is used when generating the identifier is implementation
+        dependent.
       </description>
       <arg name="identifier" type="string"/>
     </event>
