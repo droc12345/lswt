@@ -80,6 +80,14 @@ struct wl_callback *sync_callback = NULL;
 struct zwlr_foreign_toplevel_manager_v1 *zwlr_toplevel_manager = NULL;
 struct ext_foreign_toplevel_list_v1 *ext_toplevel_list = NULL;
 
+enum UsedProtocol
+{
+	NONE,
+	ZWLR_FOREIGN_TOPLEVEL,
+	EXT_FOREIGN_TOPLEVEL,
+};
+enum UsedProtocol used_protocol;
+
 struct wl_list toplevels;
 
 static void noop () {}
@@ -97,16 +105,22 @@ bool support_identifier = false;
 
 static void update_capabilities (void)
 {
-	if ( zwlr_toplevel_manager != NULL )
+	switch (used_protocol)
 	{
-		support_fullscreen = true;
-		support_activated = true;
-		support_maximized = true;
-		support_minimized = true;
-	}
-	else if ( ext_toplevel_list != NULL )
-	{
-		support_identifier = true;
+		case ZWLR_FOREIGN_TOPLEVEL:
+			support_fullscreen = true;
+			support_activated = true;
+			support_maximized = true;
+			support_minimized = true;
+			break;
+
+		case EXT_FOREIGN_TOPLEVEL:
+			support_identifier = true;
+			break;
+
+		case NONE: /* Unreachable. */
+			assert(false);
+			break;
 	}
 }
 
@@ -317,6 +331,13 @@ static void ext_toplevel_list_handle_toplevel (void *data,
 		struct ext_foreign_toplevel_list_v1 *list,
 		struct ext_foreign_toplevel_handle_v1 *handle)
 {
+	if ( used_protocol != EXT_FOREIGN_TOPLEVEL )
+	{
+		assert(used_protocol != NONE);
+		ext_foreign_toplevel_handle_v1_destroy(handle);
+		return;
+	}
+
 	struct Toplevel *toplevel = toplevel_new();
 	if ( toplevel == NULL )
 		return;
@@ -394,6 +415,13 @@ static void zwlr_toplevel_manager_handle_toplevel (void *data,
 		struct zwlr_foreign_toplevel_manager_v1 *manager,
 		struct zwlr_foreign_toplevel_handle_v1 *handle)
 {
+	if ( used_protocol != ZWLR_FOREIGN_TOPLEVEL )
+	{
+		assert(used_protocol != NONE);
+		zwlr_foreign_toplevel_handle_v1_destroy(handle);
+		return;
+	}
+
 	struct Toplevel *toplevel = toplevel_new();
 	if ( toplevel == NULL )
 		return;
@@ -560,7 +588,7 @@ static size_t real_strlen (const char *str)
 			case '\t':
 				i += 2;
 				break;
-			
+
 			default:
 				if (isspace(*str))
 					has_space = true;
@@ -749,9 +777,6 @@ static void registry_handle_global (void *data, struct wl_registry *registry,
 {
 	if ( strcmp(interface, zwlr_foreign_toplevel_manager_v1_interface.name) == 0 )
 	{
-		/* No need to bind the zwlr interface if we already have the ext one. */
-		if ( ext_toplevel_list != NULL )
-			return;
 		if ( version < 3 )
 			return;
 		DEBUG_LOG("Binding zwlr-foreign-toplevel-manager-v1.");
@@ -762,9 +787,6 @@ static void registry_handle_global (void *data, struct wl_registry *registry,
 	}
 	else if ( strcmp(interface, ext_foreign_toplevel_list_v1_interface.name) == 0 )
 	{
-		/* No need to bind the ext interface if we already have the zwlr one. */
-		if ( zwlr_toplevel_manager != NULL )
-			return;
 		DEBUG_LOG("Binding ext-foreign-toplevel-list-v1.");
 		ext_toplevel_list = wl_registry_bind(wl_registry, name,
 			&ext_foreign_toplevel_list_v1_interface, 1);
@@ -796,7 +818,11 @@ static void sync_handle_done (void *data, struct wl_callback *wl_callback, uint3
 		/* First sync: The registry finished advertising globals.
 		 * Now we can check whether we have everything we need.
 		 */
-		if ( zwlr_toplevel_manager == NULL && ext_toplevel_list == NULL )
+		if ( zwlr_toplevel_manager != NULL )
+			used_protocol = ZWLR_FOREIGN_TOPLEVEL;
+		if ( ext_toplevel_list != NULL )
+			used_protocol = EXT_FOREIGN_TOPLEVEL;
+		if ( used_protocol == NONE )
 		{
 			const char *err_message =
 				"ERROR: Wayland server supports none of the protocol extensions required for getting toplevel information:\n"
@@ -808,6 +834,7 @@ static void sync_handle_done (void *data, struct wl_callback *wl_callback, uint3
 			loop = false;
 			return;
 		}
+		update_capabilities();
 
 		sync++;
 		sync_callback = wl_display_sync(wl_display);
@@ -824,7 +851,6 @@ static void sync_handle_done (void *data, struct wl_callback *wl_callback, uint3
 		 * their events. Time to leave the main loop, print all data and
 		 * exit.
 		 */
-		update_capabilities();
 		loop = false;
 	}
 }
