@@ -25,6 +25,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <assert.h>
+#include <setjmp.h>
 #include <wayland-client.h>
 
 #ifdef __linux__
@@ -39,16 +40,16 @@
 #include "wlr-foreign-toplevel-management-unstable-v1.h"
 #include "ext-foreign-toplevel-list-v1.h"
 
-#define VERSION "1.1.0"
-
-#define DEBUG_LOG(FMT, ...) { if (debug_log) fprintf(stderr, "DEBUG: " FMT "\n" __VA_OPT__(,) __VA_ARGS__); }
 #define BOOL_TO_STR(B) (B) ? "true" : "false"
+
+#define VERSION "1.1.0"
 
 const char usage[] =
 	"Usage: lswt [options...]\n"
 	"  -h,        --help           Print this helpt text and exit.\n"
 	"  -v,        --version        Print version and exit.\n"
 	"  -j,        --json           Output data in JSON format.\n"
+	"  -w,        --watch          Run continously and log events.\n"
 	"  -c <fmt>, --custom <fmt>    Define a custom line-based output format.\n";
 
 enum Output_format
@@ -59,6 +60,13 @@ enum Output_format
 };
 enum Output_format output_format = NORMAL;
 char *custom_output_format = NULL;
+
+enum Mode
+{
+	LIST,
+	WATCH,
+};
+enum Mode mode = LIST;
 
 /** Used for padding when printing output in NORMAL format. */
 size_t longest_app_id = 7; // strlen("app-id:")
@@ -91,6 +99,13 @@ enum UsedProtocol used_protocol;
 struct wl_list toplevels;
 
 static void noop () {}
+
+/* We want to cleanly exit on SIGINT (f.e. when Ctrl-C is pressed in WATCH mode)
+ * however after exiting the signal handler wl_display_dispatch() will just
+ * continue until the next event from the server. We can not sync in the signal
+ * handler, so let's just long-jump to right before the main-loop and skip it.
+ */
+ jmp_buf skip_main_loop;
 
 /**********************
  *                    *
@@ -133,6 +148,9 @@ struct Toplevel
 {
 	struct wl_list link;
 
+	/** Internal id, used in WATCH mode. */
+	size_t id;
+
 	struct zwlr_foreign_toplevel_handle_v1 *zwlr_handle;
 	struct ext_foreign_toplevel_handle_v1 *ext_handle;
 
@@ -163,12 +181,13 @@ static struct Toplevel *toplevel_new (void)
 	struct Toplevel *new = calloc(1, sizeof(struct Toplevel));
 	if ( new == NULL )
 	{
-		fprintf(stderr, "ERROR: calloc: %s\n", strerror(errno));
+		fprintf(stderr, "ERROR: calloc(): %s\n", strerror(errno));
 		return NULL;
 	}
 
-	DEBUG_LOG("New toplevel: %p", (void*)new);
+	static size_t id_counter = 0;
 
+	new->id = id_counter++;
 	new->zwlr_handle = NULL;
 	new->ext_handle = NULL;
 	new->title = NULL;
@@ -181,13 +200,17 @@ static struct Toplevel *toplevel_new (void)
 	new->maximized = false;
 	new->minimized = false;
 
+	if ( mode == WATCH || debug_log )
+		fprintf(stdout, "toplevel %ld: created\n", new->id);
+
 	return new;
 }
 
 /** Destroys a toplevel and removes it from the list, if it is listed. */
 static void toplevel_destroy (struct Toplevel *self)
 {
-	DEBUG_LOG("Destroying toplevel: %p", (void*)self);
+	if ( mode == WATCH || debug_log )
+		fprintf(stdout, "toplevel %ld: destroyed\n", self->id);
 
 	if ( self->zwlr_handle != NULL )
 		zwlr_foreign_toplevel_handle_v1_destroy(self->zwlr_handle);
@@ -207,7 +230,9 @@ static void toplevel_destroy (struct Toplevel *self)
 /** Set the title of the toplevel. Called from protocol implementations. */
 static void toplevel_set_title (struct Toplevel *self, const char *title)
 {
-	DEBUG_LOG("Toplevel set title: %p, '%s'", (void*)self, title);
+	if ( mode == WATCH || debug_log )
+		fprintf(stdout, "toplevel %ld: set title: '%s' -> '%s'\n",
+				self->id, self->title, title);
 
 	if ( self->title != NULL )
 		free(self->title);
@@ -220,7 +245,9 @@ static void toplevel_set_title (struct Toplevel *self, const char *title)
 static size_t real_strlen (const char *str);
 static void toplevel_set_app_id (struct Toplevel *self, const char *app_id)
 {
-	DEBUG_LOG("Toplevel set app-id: %p, '%s'", (void*)self, app_id);
+	if ( mode == WATCH || debug_log )
+		fprintf(stdout, "toplevel %ld: set app-id: '%s' -> '%s'\n",
+				self->id, self->app_id, app_id);
 
 	if ( self->app_id != NULL )
 		free(self->app_id);
@@ -240,11 +267,14 @@ static void toplevel_set_app_id (struct Toplevel *self, const char *app_id)
 /** Set the identifier of the toplevel. Called from protocol implementations. */
 static void toplevel_set_identifier (struct Toplevel *self, const char *identifier)
 {
-	DEBUG_LOG("Toplevel set identifier: %p, '%s'", (void*)self, identifier);
+	if ( mode == WATCH || debug_log )
+		fprintf(stdout, "toplevel %ld: set identifier: %s\n",
+				self->id, identifier);
 
 	if ( self->identifier != NULL )
 	{
-		fputs("ERROR: protocol-error: compositor changed identifier of toplevel, which is forbidden by the protocol. Continuing anyway...\n", stderr);
+		fputs("ERROR: protocol-error: Compositor changed identifier of toplevel, "
+				"which is forbidden by the protocol. Continuing anyway...\n", stderr);
 		free(self->identifier);
 	}
 	self->identifier = strdup(identifier);
@@ -254,31 +284,40 @@ static void toplevel_set_identifier (struct Toplevel *self, const char *identifi
 
 static void toplevel_set_fullscreen (struct Toplevel *self, bool fullscreen)
 {
-	DEBUG_LOG("Toplevel set fullscreen: %p, '%d'", (void*)self, fullscreen);
+	if (debug_log)
+		fprintf(stdout, "[toplevel %ld: set fullscreen: %d]\n",
+				self->id, fullscreen);
 	self->fullscreen = fullscreen;
 }
 
 static void toplevel_set_activated (struct Toplevel *self, bool activated)
 {
-	DEBUG_LOG("Toplevel set activated: %p, '%d'", (void*)self, activated);
+	if (debug_log)
+		fprintf(stdout, "[toplevel %ld: set activated: %d]\n",
+				self->id, activated);
 	self->activated = activated;
 }
 
 static void toplevel_set_maximized (struct Toplevel *self, bool maximized)
 {
-	DEBUG_LOG("Toplevel set maximized: %p, '%d'", (void*)self, maximized);
+	if (debug_log)
+		fprintf(stdout, "[toplevel %ld: set maximized: %d]\n",
+				self->id, maximized);
 	self->maximized = maximized;
 }
 
 static void toplevel_set_minimized (struct Toplevel *self, bool minimized)
 {
-	DEBUG_LOG("Toplevel set minimized: %p, '%d'", (void*)self, minimized);
+	if (debug_log)
+		fprintf(stdout, "[toplevel %ld: set minimized: %d]\n",
+				self->id, minimized);
 	self->minimized = minimized;
 }
 
 static void toplevel_done (struct Toplevel *self)
 {
-	DEBUG_LOG("Toplevel done: %p", (void*)self);
+	if (debug_log)
+		fprintf(stderr, "[toplevel %ld: done]", self->id);
 
 	if (self->listed)
 		return;
@@ -319,9 +358,19 @@ static void ext_foreign_handle_handle_done (void *data, struct ext_foreign_tople
 	toplevel_done(toplevel);
 }
 
+static void ext_foreign_handle_handle_closed (void *data, struct ext_foreign_toplevel_handle_v1 *handle)
+{
+	/* We only care when watching for events. */
+	if ( mode == WATCH )
+	{
+		struct Toplevel *toplevel = (struct Toplevel *)data;
+		toplevel_destroy(toplevel);
+	}
+}
+
 static const struct ext_foreign_toplevel_handle_v1_listener ext_handle_listener = {
 	.app_id       = ext_foreign_handle_handle_app_id,
-	.closed       = noop,
+	.closed       = ext_foreign_handle_handle_closed,
 	.done         = ext_foreign_handle_handle_done,
 	.identifier   = ext_foreign_handle_handle_identifier,
 	.title        = ext_foreign_handle_handle_title,
@@ -400,10 +449,20 @@ static void zwlr_foreign_handle_handle_done (void *data, struct zwlr_foreign_top
 	toplevel_done(toplevel);
 }
 
+static void zwlr_foreign_handle_handle_closed (void *data, struct zwlr_foreign_toplevel_handle_v1 *handle)
+{
+	/* We only care when watching for events. */
+	if ( mode == WATCH )
+	{
+		struct Toplevel *toplevel = (struct Toplevel *)data;
+		toplevel_destroy(toplevel);
+	}
+}
+
 static const struct zwlr_foreign_toplevel_handle_v1_listener zwlr_handle_listener = {
 	.app_id       = zwlr_foreign_handle_handle_app_id,
-	.closed       = noop,
 	.done         = zwlr_foreign_handle_handle_done,
+	.closed       = zwlr_foreign_handle_handle_closed,
 	.output_enter = noop,
 	.output_leave = noop,
 	.parent       = noop,
@@ -779,7 +838,8 @@ static void registry_handle_global (void *data, struct wl_registry *registry,
 	{
 		if ( version < 3 )
 			return;
-		DEBUG_LOG("Binding zwlr-foreign-toplevel-manager-v1.");
+		if (debug_log)
+			fputs("[Binding zwlr-foreign-toplevel-manager-v1.]\n", stderr);
 		zwlr_toplevel_manager = wl_registry_bind(wl_registry, name,
 			&zwlr_foreign_toplevel_manager_v1_interface, 3);
 		zwlr_foreign_toplevel_manager_v1_add_listener(zwlr_toplevel_manager,
@@ -787,7 +847,8 @@ static void registry_handle_global (void *data, struct wl_registry *registry,
 	}
 	else if ( strcmp(interface, ext_foreign_toplevel_list_v1_interface.name) == 0 )
 	{
-		DEBUG_LOG("Binding ext-foreign-toplevel-list-v1.");
+		if (debug_log)
+			fputs("[Binding ext-foreign-toplevel-list-v1.]\n", stderr);
 		ext_toplevel_list = wl_registry_bind(wl_registry, name,
 			&ext_foreign_toplevel_list_v1_interface, 1);
 		ext_foreign_toplevel_list_v1_add_listener(ext_toplevel_list,
@@ -808,7 +869,8 @@ static const struct wl_callback_listener sync_callback_listener = {
 static void sync_handle_done (void *data, struct wl_callback *wl_callback, uint32_t other_data)
 {
 	static int sync = 0;
-	DEBUG_LOG("sync callback %d.", sync);
+	if (debug_log)
+		fprintf(stderr, "[Sync callback: %d]\n", sync);
 
 	wl_callback_destroy(wl_callback);
 	sync_callback = NULL;
@@ -845,7 +907,7 @@ static void sync_handle_done (void *data, struct wl_callback *wl_callback, uint3
 		//      So check if any of those are bound and then add one step
 		//      if necessary.
 	}
-	else
+	else if ( mode == LIST )
 	{
 		/* Second sync: Now we have received all toplevel handles and
 		 * their events. Time to leave the main loop, print all data and
@@ -857,6 +919,7 @@ static void sync_handle_done (void *data, struct wl_callback *wl_callback, uint3
 
 static void dump_and_free_data (void)
 {
+	assert(mode == LIST);
 	out_start();
 	struct Toplevel *t, *tmp;
 	wl_list_for_each_reverse_safe(t, tmp, &toplevels, link)
@@ -869,9 +932,32 @@ static void dump_and_free_data (void)
 
 static void free_data (void)
 {
+	/* If we are in LIST mode, destroying a toplevel will print a message
+	 * to the user. However, in this case that message would be wrong,
+	 * because the toplevel isn't closed, we just destroy our internal
+	 * representation of it. So set mode to LIST for cleanup.
+	 */
+	mode = LIST;
+
 	struct Toplevel *t, *tmp;
 	wl_list_for_each_safe(t, tmp, &toplevels, link)
 		toplevel_destroy(t);
+}
+
+static void handle_interrupt (int signum)
+{
+	fputs("Killed.\n", stderr);
+	loop = false;
+
+	/* In WATCH mode, Ctrl-C is the expected way to exit lswt, so don't
+	 * set the return value to EXIT_FAILURE. However in LIST mode we
+	 * generally don't expect SIGINT, so we probably encountered an error
+	 * and should set the return value accordingly.
+	 */
+	if ( mode == LIST )
+		ret = EXIT_FAILURE;
+
+	longjmp(skip_main_loop, 1);
 }
 
 /**
@@ -939,6 +1025,7 @@ int main(int argc, char *argv[])
 {
 	signal(SIGSEGV, handle_error);
 	signal(SIGFPE, handle_error);
+	signal(SIGINT, handle_interrupt);
 	init_landlock();
 
 	if ( argc > 0 ) for (int i = 1; i < argc; i++)
@@ -947,7 +1034,7 @@ int main(int argc, char *argv[])
 		{
 			if ( output_format != NORMAL )
 			{
-				fputs("ERROR: output format may only be specified once.", stderr);
+				fputs("ERROR: Output format may only be specified once.", stderr);
 				ret = EXIT_FAILURE;
 				goto cleanup;
 			}
@@ -957,13 +1044,13 @@ int main(int argc, char *argv[])
 		{
 			if ( output_format != NORMAL )
 			{
-				fputs("ERROR: output format may only be specified once.", stderr);
+				fputs("ERROR: Output format may only be specified once.", stderr);
 				ret = EXIT_FAILURE;
 				goto cleanup;
 			}
 			if ( argc == i + 1 )
 			{
-				fprintf(stderr, "ERROR: flag '%s' requires a parameter.", argv[i]);
+				fprintf(stderr, "ERROR: Flag '%s' requires a parameter.", argv[i]);
 				ret = EXIT_FAILURE;
 				goto cleanup;
 			}
@@ -978,6 +1065,8 @@ int main(int argc, char *argv[])
 		}
 		else if ( strcmp(argv[i], "--debug") == 0 )
 			debug_log = true;
+		else if ( strcmp(argv[i], "-w") == 0 || strcmp(argv[i], "--watch") == 0 )
+			mode = WATCH;
 		else if ( strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0 )
 		{
 			fputs("lswt version " VERSION "\n", stderr);
@@ -992,11 +1081,18 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
-			fprintf(stderr, "Invalid option: %s\n", argv[i]);
+			fprintf(stderr, "ERROR: Unknown option: %s\n", argv[i]);
 			fputs(usage, stderr);
 			ret = EXIT_FAILURE;
 			goto cleanup;
 		}
+	}
+
+	if ( mode == WATCH && output_format != NORMAL )
+	{
+			fputs("ERROR: Alternative output formats are not supported in watch mode.\n", stderr);
+			ret = EXIT_FAILURE;
+			goto cleanup;
 	}
 
 	/* We query the display name here instead of letting wl_display_connect()
@@ -1011,7 +1107,9 @@ int main(int argc, char *argv[])
 		ret = EXIT_FAILURE;
 		goto cleanup;
 	}
-	DEBUG_LOG("Trying to connect to display '%s'.", display_name);
+
+	if (debug_log)
+		fprintf(stderr, "[Trying to connect to display: '%s']\n", display_name);
 
 	/* Behold: If this succeeds, we may no longer goto cleanup, because
 	 * Wayland magic happens, which can cause Toplevels to be allocated.
@@ -1031,18 +1129,21 @@ int main(int argc, char *argv[])
 	sync_callback = wl_display_sync(wl_display);
 	wl_callback_add_listener(sync_callback, &sync_callback_listener, NULL);
 
-	DEBUG_LOG("Entering main loop.");
-	while ( loop && wl_display_dispatch(wl_display) > 0 );
+	if (debug_log)
+		fputs("[Entering main loop.]\n", stderr);
+	if ( setjmp(skip_main_loop) == 0 )
+		while ( loop && wl_display_dispatch(wl_display) > 0 );
 
 	/* If nothing went wrong in the main loop we can print and free all data,
 	 * otherwise just free it.
 	 */
-	if ( ret == EXIT_SUCCESS )
+	if ( ret == EXIT_SUCCESS && mode == LIST )
 		dump_and_free_data();
 	else
 		free_data();
 
-	DEBUG_LOG("Cleaning up Wayland interfaces.");
+	if (debug_log)
+		fputs("[Cleaning up Wayland interfaces.]\n", stderr);
 	if ( sync_callback != NULL )
 		wl_callback_destroy(sync_callback);
 	if ( zwlr_toplevel_manager != NULL )
