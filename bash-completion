@@ -1,1 +1,1 @@
-complete -W "-t --tsv -j --json -h --help -v --version" lswt
+complete -W "-j --json -h --help -v --version -w --watch -c --custom" lswt
