@@ -707,6 +707,19 @@ static void out_write_toplevel (struct Toplevel *toplevel)
 	switch (output_format)
 	{
 		case NORMAL:
+			if (toplevel->activated)
+				fputs("A", stdout);
+			else
+				fputs(" ", stdout);
+			if (toplevel->maximized)
+				fputs("M", stdout);
+			else if (toplevel->minimized)
+				fputs("m", stdout);
+			else if (toplevel->fullscreen)
+				fputs("F", stdout);
+			else
+				fputs(" ", stdout);
+			fputs(" ", stdout);
 			write_padded_maybe_quoted(longest_app_id, toplevel->app_id, stdout);
 			fputs("   ", stdout);
 			write_maybe_quoted(toplevel->title, stdout);
@@ -777,12 +790,11 @@ static void out_start (void)
 	switch (output_format)
 	{
 		case NORMAL:
-			if (isatty(fileno(stdout))) fputs("\x1b[0;1m", stdout);
+			fputs("   ", stdout);
 			write_padded(longest_app_id, "app-id:", stdout);
 			fputs("   ", stdout);
 			fputs("title:", stdout);
 			fputc('\n', stdout);
-			if (isatty(fileno(stdout))) fputs("\x1b[0m", stdout);
 			return;
 
 		case JSON:
